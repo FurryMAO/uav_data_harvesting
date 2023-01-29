@@ -36,7 +36,7 @@ class DHDisplay(BaseDisplay):
 
         for device in first_state.device_list.get_devices():
             ax_traj.add_patch(
-                patches.Circle(np.array(device.position) , 0.4, facecolor=device.color,
+                patches.Circle(np.array(device.position) , 0.2, facecolor=device.color,
                                edgecolor="black"))
 
         self.draw_start_and_end(trajectory)

@@ -82,11 +82,11 @@ class BaseDisplay:
 
         # offset to shift tick labels
         locs, labels = plt.xticks()
-        locs_new = [x +0.5 for x in locs]
+        locs_new = [x +0 for x in locs]
         ax.xaxis.set_ticks_position('top')
         plt.xticks(locs_new, tick_labels_x,rotation='vertical')
         locs, labels = plt.yticks()
-        locs_new = [x +0.5 for x in locs]
+        locs_new = [x +0 for x in locs]
         plt.yticks(locs_new, tick_labels_y)
 
     def draw_start_and_end(self, trajectory):
@@ -96,17 +96,17 @@ class BaseDisplay:
             # Identify first moves
             if state.movement_budget == state.initial_movement_budget:
                 #plt.scatter(state.position[0] +0.5.5, state.position[1] +0.5, s=self.marker_size, marker="h", color="w")
-                plt.scatter(state.position[0]+0.5 , state.position[1]+0.5 , s=self.marker_size, marker="*", color="w")
+                plt.scatter(state.position[0]+0 , state.position[1]+0 , s=self.marker_size, marker="*", color="w")
 
             # Identify last moves
             if next_state.terminal:
                 if next_state.landed:
-                    plt.scatter(next_state.position[0] +0.5, next_state.position[1] +0.5,
+                    plt.scatter(next_state.position[0] +0, next_state.position[1] +0,
                                 s=self.marker_size, marker="p", color="g")
                     # plt.scatter(next_state.position[0], next_state.position[1],
                     #             s=self.marker_size, marker="p", color="g")
                 else:
-                    plt.scatter(next_state.position[0] +0.5, next_state.position[1] +0.5,
+                    plt.scatter(next_state.position[0] +0, next_state.position[1] +0,
                                 s=self.marker_size, marker="x", color="r")
                     # plt.scatter(next_state.position[0], next_state.position[1],
                     #             s=self.marker_size, marker="x", color="r")
@@ -120,9 +120,9 @@ class BaseDisplay:
         dir_x = x_next - x
         if dir_x == 0 and dir_y == 0:
             #plt.scatter(x +0.5, y +0.5, marker="P", color=color) # whole in the air
-            plt.scatter(x +0.5, y+0.5 , marker="+", color='g')
+            plt.scatter(x +0, y+0 , marker="+", color='g')
         else:
-            plt.arrow(x+0.5, y+0.5, dir_x, dir_y,  # 坐标与距离
+            plt.arrow(x+0, y+0, dir_x, dir_y,  # 坐标与距离
                       head_width=0.2, lw=1,  # 箭头⻓度，箭尾线宽
                       length_includes_head=True, color=color)  # ⻓度计算包含箭头箭尾
 
