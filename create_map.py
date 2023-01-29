@@ -7,17 +7,18 @@ green=(0,255,0)
 blue=(0,0,255)
 yellow=(255, 255, 0)
 
-width = 30
-height = 30
+width = 20
+height = 20
 img=np.zeros((width,height,3)).astype(np.uint8)
-img[10:14,6:26,:]=red
-img[14:18,24:26,:]=red
-img[14:18,6:8,:]=red
-img[2:6,22:24,:]=red
-img[16:18,14:16,:]=blue
-img[2:6,4:10,:]=green
-img[24:26,24:28,:]=green
-img[22:24,4:10,:]=yellow
+img[10:12,4:8,:]=red
+img[10:12,12:16,:]=red
+img[5:7,2:4,:]=red
+img[5:7,8:10,:]=red
+img[5:7,14:16,:]=red
+img[10:11,10:11,:]=blue
+img[2:4,4:6,:]=green
+img[16:18,16:18,:]=green
+img[14:16,2:10,:]=yellow
 r_img=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
 cv2.imwrite('temp.png',r_img)
