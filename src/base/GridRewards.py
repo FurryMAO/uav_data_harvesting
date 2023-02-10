@@ -23,9 +23,9 @@ class GridRewards:
         if not next_state.landed:
             # Penalize battery Consumption
             reward -= self.params.movement_penalty
+        else:
+            reward=reward+self.params.landing_reward-self.params.movement_penalty
 
-        if next_state.landed:
-            reward=reward+self.params.land_reward-self.params.movement_penalty
 
         # Penalize not moving (This happens when it either tries to land or fly into a boundary or hovers or fly into
         # a cell occupied by another agent)

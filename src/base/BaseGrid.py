@@ -25,4 +25,4 @@ class BaseGrid:
         return self.map_image.nfz
 
     def get_landing_zone(self):
-        return self.map_image.start_land_zone
+        return self.map_image.landing_zone

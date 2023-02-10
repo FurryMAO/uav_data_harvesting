@@ -64,12 +64,12 @@ class DDQNAgent(object):
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
         q_star_input = Input(shape=(), name='q_star_input', dtype=tf.float32)
 
-        if self.params.blind_agent:
+        if self.params.blind_agent: #false
             scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
             states = [scalars_input]
+            self.hard_update()
             self.q_network = self.build_blind_model(scalars_input)
             self.target_network = self.build_blind_model(scalars_input, 'target_')
-            self.hard_update()
 
         elif self.params.use_scalar_input: #False
             devices_input = Input(shape=(3 * self.params.max_devices,), name='devices_input', dtype=tf.float32)
@@ -91,7 +91,7 @@ class DDQNAgent(object):
                       float_map_input,
                       scalars_input]
 
-            map_cast = tf.cast(boolean_map_input, dtype=tf.float32)
+            map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
             padded_map = tf.concat([map_cast, float_map_input], axis=3)
 
             self.q_network = self.build_model(padded_map, scalars_input, states)
