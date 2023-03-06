@@ -5,12 +5,7 @@ from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, 
 import numpy as np
 
 
-def print_node(x):
-    print(x)
-    return x
-
-
-class DDQNAgentParams:
+class PGAgentParams:
     def __init__(self):
         # Convolutional part config
         self.conv_layers = 2
@@ -44,9 +39,9 @@ class DDQNAgentParams:
         self.print_summary = False
 
 
-class DDQNAgent(object):
+class PGAgent(object):
 
-    def __init__(self, params: DDQNAgentParams, example_state, example_action, stats=None):
+    def __init__(self, params: PGAgentParams, example_state, example_action, stats=None):
 
         self.params = params
         gamma = tf.constant(self.params.gamma, dtype=float)
@@ -61,14 +56,14 @@ class DDQNAgent(object):
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
         reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
-        q_star_input = Input(shape=(), name='q_star_input', dtype=tf.float32)
+        #q_star_input = Input(shape=(), name='q_star_input', dtype=tf.float32)
 
         if self.params.blind_agent: #false
             scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
             states = [scalars_input]
             self.hard_update()
-            self.q_network = self.build_blind_model(scalars_input)
-            self.target_network = self.build_blind_model(scalars_input, 'target_')
+            self.network = self.build_blind_model(scalars_input)
+            #self.target_network = self.build_blind_model(scalars_input, 'target_')
 
         elif self.params.use_scalar_input: #False
             devices_input = Input(shape=(3 * self.params.max_devices,), name='devices_input', dtype=tf.float32)
@@ -77,8 +72,8 @@ class DDQNAgent(object):
             states = [devices_input,
                       uavs_input,
                       scalars_input]
-            self.q_network = self.build_scalars_model(states)
-            self.target_network = self.build_scalars_model(states, 'target_')
+            self.network = self.build_scalars_model(states)
+            #self.target_network = self.build_scalars_model(states, 'target_')
             self.hard_update()
 
         else:
@@ -92,44 +87,29 @@ class DDQNAgent(object):
             map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
             padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
 
-            self.q_network = self.build_model(padded_map, scalars_input, states)
-            self.target_network = self.build_model(padded_map, scalars_input, states, 'target_')
-            self.hard_update()
+            self.pg_network = self.build_model(padded_map, scalars_input, states,'PG model')
+            self.pg_network.train()
+            self.optimizer = tf.optimizers.Adam(self.lr)
+            self.global_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.global_map)
+            self.local_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.local_map)
+            self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
 
-            self.global_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                          outputs=self.global_map)
-            self.local_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                         outputs=self.local_map)
-            self.total_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                         outputs=self.total_map)
-
-        q_values = self.q_network.output
-        q_target_values = self.target_network.output
+        q_values = self.pg_network.output
 
         # Define Q* in min(Q - (r + gamma_terminated * Q*))^2
         max_action = tf.argmax(q_values, axis=1, name='max_action', output_type=tf.int64)
-        max_action_target = tf.argmax(q_target_values, axis=1, name='max_action', output_type=tf.int64)
+
         one_hot_max_action = tf.one_hot(max_action, depth=self.num_actions, dtype=float)
-        q_star = tf.reduce_sum(tf.multiply(one_hot_max_action, q_target_values, name='mul_hot_target'), axis=1,
-                               name='q_star')
+
         self.q_star_model = Model(inputs=states, outputs=q_star)
 
         # Define Bellman loss
-        one_hot_rm_action = tf.one_hot(action_input, depth=self.num_actions, on_value=1.0, off_value=0.0, dtype=float)
-        one_cold_rm_action = tf.one_hot(action_input, depth=self.num_actions, on_value=0.0, off_value=1.0, dtype=float)
-        q_old = tf.stop_gradient(tf.multiply(q_values, one_cold_rm_action))
-        gamma_terminated = tf.multiply(tf.cast(tf.math.logical_not(termination_input), tf.float32), gamma)
-        q_update = tf.expand_dims(tf.add(reward_input, tf.multiply(q_star_input, gamma_terminated)), 1)
-        q_update_hot = tf.multiply(q_update, one_hot_rm_action)
-        q_new = tf.add(q_update_hot, q_old)
-        q_loss = tf.losses.MeanSquaredError()(q_new, q_values)
-        self.q_loss_model = Model(
-            inputs=states + [action_input, reward_input, termination_input, q_star_input],
-            outputs=q_loss)
+
+
 
         # Exploit act model
         self.exploit_model = Model(inputs=states, outputs=max_action)
-        self.exploit_model_target = Model(inputs=states, outputs=max_action_target)
+
 
         # Softmax explore model
         softmax_scaling = tf.divide(q_values, tf.constant(self.params.soft_max_scaling, dtype=float))
@@ -148,67 +128,51 @@ class DDQNAgent(object):
         flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
         layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
         for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
-                layer)
+            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
         output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-
         model = Model(inputs=inputs, outputs=output)
-
         return model
 
     def build_scalars_model(self, inputs, name=''):
-
         layer = Concatenate(name=name + 'concat')(inputs)
         for k in range(self.params.hidden_layer_num):
             layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
                 layer)
         output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-
         model = Model(inputs=inputs, outputs=output)
-
         return model
 
     def build_blind_model(self, inputs, name=''):
-
         layer = inputs
         for k in range(self.params.hidden_layer_num):
             layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
                 layer)
         output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-
         model = Model(inputs=inputs, outputs=output)
-
         return model
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
-
         # Forking for global and local map
         # Global Map
         global_map = tf.stop_gradient(
             AvgPool2D((self.params.global_map_scaling, self.params.global_map_scaling))(conv_in))
-
         self.global_map = global_map # is the total map been poolled
         self.total_map = conv_in
-
         for k in range(self.params.conv_layers):
             global_map = Conv2D(self.params.conv_kernels, self.params.conv_kernel_size, activation='relu',
                                 strides=(1, 1),
                                 name=name + 'global_conv_' + str(k + 1))(global_map) #pass two conv layers
-
         flatten_global = Flatten(name=name + 'global_flatten')(global_map) #flat the whole map
 
         # Local Map
         crop_frac = float(self.params.local_map_size) / float(self.boolean_map_shape[0])
         local_map = tf.stop_gradient(tf.image.central_crop(conv_in, crop_frac))
         self.local_map = local_map
-
         for k in range(self.params.conv_layers):
             local_map = Conv2D(self.params.conv_kernels, self.params.conv_kernel_size, activation='relu',
                                strides=(1, 1),
                                name=name + 'local_conv_' + str(k + 1))(local_map)
-
         flatten_local = Flatten(name=name + 'local_flatten')(local_map)
-
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
     def act(self, state):
@@ -263,6 +227,7 @@ class DDQNAgent(object):
             devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
             uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
             scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
+
             return self.exploit_model_target([devices_in, uavs_in, scalars]).numpy()[0]
 
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]

@@ -48,7 +48,7 @@ class ModelStats:
 
         self.training_log_writer = tf.summary.create_file_writer(self.log_dir + '/training')
         self.testing_log_writer = tf.summary.create_file_writer(self.log_dir + '/test')
-
+        self.writer = tf.summary.create_file_writer(self.log_dir)
         self.evaluation_deque = collections.deque(maxlen=params.moving_average_length)
         self.eval_best = -float('inf')
         self.bar = None

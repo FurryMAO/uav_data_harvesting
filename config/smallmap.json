@@ -65,7 +65,7 @@
         "gamma": 0.95,
         "soft_max_scaling": 0.1,
         "global_map_scaling": 3,
-        "local_map_size": 17,
+        "local_map_size": 10,
         "print_summary": true,
         "use_scalar_input": false,
         "blind_agent": false

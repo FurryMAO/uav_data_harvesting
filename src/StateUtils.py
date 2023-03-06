@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 
-def pad_centered(state, map_in, pad_value):
+def pad_centered(state, map_in, pad_value): # returen the map been padded
     padding_rows = math.ceil(state.no_fly_zone.shape[0] / 2.0)
     padding_cols = math.ceil(state.no_fly_zone.shape[1] / 2.0)
     position_x, position_y = state.position

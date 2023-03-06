@@ -95,7 +95,7 @@ class State(BaseState):
 
     def get_boolean_map(self):
         padded_red = pad_centered(self, np.concatenate([np.expand_dims(self.no_fly_zone, -1),
-                                                        np.expand_dims(self.obstacles, -1)], axis=-1), 1)
+                                                        np.expand_dims(self.obstacles, -1)], axis=-1), 1) #expand the array to 3D and combine them
         if self.multi_agent:
             padded_rest = pad_centered(self,
                                        np.concatenate(
@@ -103,7 +103,7 @@ class State(BaseState):
                                            axis=-1), 0)
         else:
             padded_rest = pad_centered(self, np.expand_dims(self.landing_zone, -1), 0)
-        return np.concatenate([padded_red, padded_rest], axis=-1)
+        return np.concatenate([padded_red, padded_rest], axis=-1) # have rgb 3D
 
     def get_boolean_map_shape(self):
         return self.get_boolean_map().shape
