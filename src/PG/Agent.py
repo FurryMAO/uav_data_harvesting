@@ -1,7 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
-
 import numpy as np
 
 
@@ -42,81 +41,34 @@ class PGAgentParams:
 class PGAgent(object):
 
     def __init__(self, params: PGAgentParams, example_state, example_action, stats=None):
-
         self.params = params
         gamma = tf.constant(self.params.gamma, dtype=float)
-        self.align_counter = 0
-
         self.boolean_map_shape = example_state.get_boolean_map_shape() #get the environment map shape
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
-
         # Create shared inputs
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
         reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
-        #q_star_input = Input(shape=(), name='q_star_input', dtype=tf.float32)
-
-        if self.params.blind_agent: #false
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [scalars_input]
-            self.hard_update()
-            self.network = self.build_blind_model(scalars_input)
-            #self.target_network = self.build_blind_model(scalars_input, 'target_')
-
-        elif self.params.use_scalar_input: #False
-            devices_input = Input(shape=(3 * self.params.max_devices,), name='devices_input', dtype=tf.float32)
-            uavs_input = Input(shape=(4 * self.params.max_uavs,), name='uavs_input', dtype=tf.float32)
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [devices_input,
-                      uavs_input,
-                      scalars_input]
-            self.network = self.build_scalars_model(states)
-            #self.target_network = self.build_scalars_model(states, 'target_')
-            self.hard_update()
-
-        else:
-            boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
-            float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [boolean_map_input,
-                      float_map_input,
-                      scalars_input]
-
-            map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
-            padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
-
-            self.pg_network = self.build_model(padded_map, scalars_input, states,'PG model')
-            self.pg_network.train()
-            self.optimizer = tf.optimizers.Adam(self.lr)
-            self.global_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.global_map)
-            self.local_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.local_map)
-            self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
-
-        q_values = self.pg_network.output
-
-        # Define Q* in min(Q - (r + gamma_terminated * Q*))^2
-        max_action = tf.argmax(q_values, axis=1, name='max_action', output_type=tf.int64)
-
-        one_hot_max_action = tf.one_hot(max_action, depth=self.num_actions, dtype=float)
-
-        self.q_star_model = Model(inputs=states, outputs=q_star)
-
-        # Define Bellman loss
-
-
-
-        # Exploit act model
-        self.exploit_model = Model(inputs=states, outputs=max_action)
-
+        boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
+        float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
+        scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
+        states = [boolean_map_input,float_map_input,scalars_input]
+        map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
+        padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
+        #build the policy gradient network
+        self.pg_network = self.build_model(padded_map, scalars_input, states,'PG model')
+        self.pg_network.train()
+        self.optimizer = tf.optimizers.Adam(self.lr)
+        self.global_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.global_map)
+        self.local_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.local_map)
+        self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
 
         # Softmax explore model
         softmax_scaling = tf.divide(q_values, tf.constant(self.params.soft_max_scaling, dtype=float))
         softmax_action = tf.math.softmax(softmax_scaling, name='softmax_action')
         self.soft_explore_model = Model(inputs=states, outputs=softmax_action)
-
-        self.q_optimizer = tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
 
         if self.params.print_summary:
             self.q_loss_model.summary()
@@ -124,32 +76,16 @@ class PGAgent(object):
         if stats:
             stats.set_model(self.target_network)
 
-    def build_model(self, map_proc, states_proc, inputs, name=''):
-        flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
-        layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
-        for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
-        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-        model = Model(inputs=inputs, outputs=output)
-        return model
 
-    def build_scalars_model(self, inputs, name=''):
-        layer = Concatenate(name=name + 'concat')(inputs)
-        for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
-                layer)
-        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-        model = Model(inputs=inputs, outputs=output)
-        return model
-
-    def build_blind_model(self, inputs, name=''):
-        layer = inputs
-        for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
-                layer)
-        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-        model = Model(inputs=inputs, outputs=output)
-        return model
+    def choose_action(self, s):
+        """
+        用神经网络输出的**策略pi**，选择动作。
+        输入: state
+        输出: act
+        """
+        _logits = self.model(np.array([s], np.float32))
+        _probs = tf.nn.softmax(_logits).numpy()
+        return tl.rein.choice_action_by_probs(_probs.ravel())  # 根据策略PI选择动作。
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
         # Forking for global and local map
@@ -175,11 +111,16 @@ class PGAgent(object):
         flatten_local = Flatten(name=name + 'local_flatten')(local_map)
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
-    def act(self, state):
-        return self.get_soft_max_exploration(state)
 
-    def get_random_action(self):
-        return np.random.randint(0, self.num_actions)
+    def build_model(self, map_proc, states_proc, inputs, name=''):
+        flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
+        layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
+        for k in range(self.params.hidden_layer_num):
+            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
+        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
+        model = Model(inputs=inputs, outputs=output)
+        return model
+
 
     def get_exploitation_action(self, state):
 
@@ -218,32 +159,10 @@ class PGAgent(object):
         return np.random.choice(range(self.num_actions), size=1, p=p)
 
     def get_exploitation_action_target(self, state):
-
-        if self.params.blind_agent:
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model_target(scalars).numpy()[0]
-
-        if self.params.use_scalar_input:
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-
-            return self.exploit_model_target([devices_in, uavs_in, scalars]).numpy()[0]
-
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-
         return self.exploit_model_target([boolean_map_in, float_map_in, scalars]).numpy()[0]
-
-    def hard_update(self):
-        self.target_network.set_weights(self.q_network.get_weights())
-
-    def soft_update(self, alpha):
-        weights = self.q_network.get_weights()
-        target_weights = self.target_network.get_weights()
-        self.target_network.set_weights(
-            [w_new * alpha + w_old * (1. - alpha) for w_new, w_old in zip(weights, target_weights)])
 
     def train(self, experiences):
         boolean_map = experiences[0]

@@ -95,7 +95,6 @@ class DeviceList:
 
         # for device in self.devices:
         #     device.log_data()
-
         return ratio
 
     def get_devices(self):

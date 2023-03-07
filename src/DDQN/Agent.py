@@ -1,7 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
-
 import numpy as np
 
 
@@ -50,8 +49,6 @@ class DDQNAgent(object):
 
         self.params = params
         gamma = tf.constant(self.params.gamma, dtype=float)
-        self.align_counter = 0
-
         self.boolean_map_shape = example_state.get_boolean_map_shape() #get the environment map shape
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size

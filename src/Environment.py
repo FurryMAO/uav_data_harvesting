@@ -1,10 +1,13 @@
 import copy
 import distutils.util
+from types import SimpleNamespace
 
 import tqdm
 
 from src.DDQN.Agent import DDQNAgentParams, DDQNAgent
 from src.DDQN.Trainer import DDQNTrainerParams, DDQNTrainer
+from src.PG.Agent import PGAgent, PGAgentParams
+from src.PG.Trainer import PGTrainerParams, PGTrainer
 from src.Display import DHDisplay
 from src.Grid import GridParams, Grid
 from src.Physics import PhysicsParams, Physics
@@ -32,9 +35,18 @@ class Environment(BaseEnvironment):
         self.grid = Grid(params.grid_params, stats=self.stats)
         self.rewards = Rewards(params.reward_params, stats=self.stats)
         self.physics = Physics(params=params.physics_params, stats=self.stats)
-        self.agent = DDQNAgent(params.agent_params, self.grid.get_example_state(), self.physics.get_example_action(),
-                               stats=self.stats) #DDQNAGRNT( params,
-        self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
+        algorithm_select= params.algorithm_params.__dict__
+
+
+
+        if algorithm_select['Policy_Gradient']==True:
+            self.agent = PGAgent(params.agent_params, self.grid.get_example_state(),
+                                   self.physics.get_example_action(),stats=self.stats) #PGAGRNT( params,
+            self.trainer = PGTrainer(params.trainer_params, agent=self.agent)
+        elif algorithm_select['DDQN']==True:
+            self.agent = DDQNAgent(params.agent_params, self.grid.get_example_state(),
+                                   self.physics.get_example_action(), stats=self.stats)  # DDQNAGRNT( params,
+            self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
 
         self.display.set_channel(self.physics.channel)
 

@@ -53,6 +53,11 @@
         "rm_size": 50000,
         "load_model": ""
     },
+    "algorithm_params": {
+        "Policy_Gradient": false,
+        "DDQN": true
+    },
+
     "agent_params": {
         "conv_layers": 2,
         "conv_kernel_size": 5,
