@@ -214,7 +214,7 @@ class DDQNAgent(object):
     def get_random_action(self):
         return np.random.randint(0, self.num_actions)
 
-    def get_exploitation_action(self, state):
+    def get_exploitation_action(self, state): # get the maximum value action
 
         if self.params.blind_agent: #false
             scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
@@ -232,7 +232,7 @@ class DDQNAgent(object):
 
         return self.exploit_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
 
-    def get_soft_max_exploration(self, state):
+    def get_soft_max_exploration(self, state): # get the action base on the possibility
 
         if self.params.blind_agent:
             scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
@@ -250,7 +250,7 @@ class DDQNAgent(object):
 
         return np.random.choice(range(self.num_actions), size=1, p=p)
 
-    def get_exploitation_action_target(self, state):
+    def get_exploitation_action_target(self, state): # get the maximum value action for target
 
         if self.params.blind_agent:
             scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]

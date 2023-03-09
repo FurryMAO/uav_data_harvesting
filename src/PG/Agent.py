@@ -47,6 +47,7 @@ class PGAgent(object):
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
+
         # Create shared inputs
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
         reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
@@ -57,10 +58,15 @@ class PGAgent(object):
         states = [boolean_map_input,float_map_input,scalars_input]
         map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
         padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
+
+
         #build the policy gradient network
         self.pg_network = self.build_model(padded_map, scalars_input, states,'PG model')
-        self.pg_network.train()
-        self.optimizer = tf.optimizers.Adam(self.lr)
+        logits=self.pg_network.outputs
+        action_probs = tf.keras.activations.softmax(logits)
+        self.soft_explore_model = Model(inputs=states, outputs=action_probs)
+
+
         self.global_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.global_map)
         self.local_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.local_map)
         self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
@@ -68,7 +74,8 @@ class PGAgent(object):
         # Softmax explore model
         softmax_scaling = tf.divide(q_values, tf.constant(self.params.soft_max_scaling, dtype=float))
         softmax_action = tf.math.softmax(softmax_scaling, name='softmax_action')
-        self.soft_explore_model = Model(inputs=states, outputs=softmax_action)
+        # Exploit act model
+        self.exploit_model_target = Model(inputs=states, outputs=max_action_target)
 
         if self.params.print_summary:
             self.q_loss_model.summary()
@@ -77,15 +84,6 @@ class PGAgent(object):
             stats.set_model(self.target_network)
 
 
-    def choose_action(self, s):
-        """
-        用神经网络输出的**策略pi**，选择动作。
-        输入: state
-        输出: act
-        """
-        _logits = self.model(np.array([s], np.float32))
-        _probs = tf.nn.softmax(_logits).numpy()
-        return tl.rein.choice_action_by_probs(_probs.ravel())  # 根据策略PI选择动作。
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
         # Forking for global and local map
@@ -122,47 +120,40 @@ class PGAgent(object):
         return model
 
 
-    def get_exploitation_action(self, state):
+    def get_random_action(self):
+        return np.random.randint(0, self.num_actions)
 
-        if self.params.blind_agent: #false
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model(scalars).numpy()[0]
-
-        if self.params.use_scalar_input: #false
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model([devices_in, uavs_in, scalars]).numpy()[0]
-
+    def get_action(self, state): # get the action base on the possiblity
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-
-        return self.exploit_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-
-    def get_soft_max_exploration(self, state):
-
-        if self.params.blind_agent:
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model(scalars).numpy()[0]
-        elif self.params.use_scalar_input:
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model([devices_in, uavs_in, scalars]).numpy()[0]
-        else:
-            boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
-            float_map_in = state.get_float_map()[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-
+        p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
         return np.random.choice(range(self.num_actions), size=1, p=p)
 
     def get_exploitation_action_target(self, state):
-        boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
-        float_map_in = state.get_float_map()[tf.newaxis, ...]
-        scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-        return self.exploit_model_target([boolean_map_in, float_map_in, scalars]).numpy()[0]
+        return self.get_action(state)
+
+    def act(self, state):
+        return self.get_action(state)
+
+    def _discount_and_norm_rewards(self):
+        """
+        通过回溯计算G值
+        """
+        # 先创建一个数组，大小和ep_rs一样。ep_rs记录的是每个状态的收获r。
+        discounted_ep_rs = np.zeros_like(self.ep_rs)
+        running_add = 0
+        # 从ep_rs的最后往前，逐个计算G
+        for t in reversed(range(0, len(self.ep_rs))):
+            running_add = running_add * self.gamma + self.ep_rs[t]
+            discounted_ep_rs[t] = running_add
+
+        # 归一化G值。
+        # 我们希望G值有正有负，这样比较容易学习。
+        discounted_ep_rs -= np.mean(discounted_ep_rs)
+        discounted_ep_rs /= np.std(discounted_ep_rs)
+        return discounted_ep_rs
+
 
     def train(self, experiences):
         boolean_map = experiences[0]
@@ -184,29 +175,37 @@ class PGAgent(object):
 
         # Train Value network
         with tf.GradientTape() as tape:
+            # 把s放入神经网络，就算_logits
+            _logits = self.model(np.vstack(self.ep_obs))
 
-            if self.params.blind_agent:
-                q_loss = self.q_loss_model(
-                    [scalars, action, reward,
-                     terminated, q_star])
-            else:
-                q_loss = self.q_loss_model(
-                    [boolean_map, float_map, scalars, action, reward,
-                     terminated, q_star])
-        q_grads = tape.gradient(q_loss, self.q_network.trainable_variables)
-        self.q_optimizer.apply_gradients(zip(q_grads, self.q_network.trainable_variables))
+            # 敲黑板
+            ## _logits和真正的动作的差距
+            # 差距也可以这样算,和sparse_softmax_cross_entropy_with_logits等价的:
+            # neg_log_prob = tf.reduce_sum(-tf.log(self.all_act_prob)*tf.one_hot(self.tf_acts, self.n_actions), axis=1)
+            neg_log_prob = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=_logits, labels=np.array(self.ep_as))
 
-        self.soft_update(self.params.alpha)
+            # 在原来的差距乘以G值，也就是以G值作为更新
+            loss = tf.reduce_mean(neg_log_prob * discounted_ep_rs_norm)
 
-    def save_weights(self, path_to_weights):
-        self.target_network.save_weights(path_to_weights)
+        grad = tape.gradient(loss, self.model.trainable_weights)
+        self.optimizer.apply_gradients(zip(grad, self.model.trainable_weights))
 
-    def save_model(self, path_to_model):
-        self.target_network.save(path_to_model)
+        self.ep_obs, self.ep_as, self.ep_rs = [], [], []  # empty episode data
+        return discounted_ep_rs_norm
 
-    def load_weights(self, path_to_weights):
-        self.q_network.load_weights(path_to_weights)
-        self.hard_update()
+        #     if self.params.blind_agent:
+        #         q_loss = self.q_loss_model(
+        #             [scalars, action, reward,
+        #              terminated, q_star])
+        #     else:
+        #         q_loss = self.q_loss_model(
+        #             [boolean_map, float_map, scalars, action, reward,
+        #              terminated, q_star])
+        # q_grads = tape.gradient(q_loss, self.q_network.trainable_variables)
+        # self.q_optimizer.apply_gradients(zip(q_grads, self.q_network.trainable_variables))
+        #
+        # self.soft_update(self.params.alpha)
+
 
     def get_global_map(self, state):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]

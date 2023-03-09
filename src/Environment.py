@@ -35,15 +35,13 @@ class Environment(BaseEnvironment):
         self.grid = Grid(params.grid_params, stats=self.stats)
         self.rewards = Rewards(params.reward_params, stats=self.stats)
         self.physics = Physics(params=params.physics_params, stats=self.stats)
-        algorithm_select= params.algorithm_params.__dict__
+        self.algorithm_select= params.algorithm_params.__dict__
 
-
-
-        if algorithm_select['Policy_Gradient']==True:
+        if self.algorithm_select['Policy_Gradient']==True:
             self.agent = PGAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(),stats=self.stats) #PGAGRNT( params,
             self.trainer = PGTrainer(params.trainer_params, agent=self.agent)
-        elif algorithm_select['DDQN']==True:
+        elif self.algorithm_select['DDQN']==True:
             self.agent = DDQNAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(), stats=self.stats)  # DDQNAGRNT( params,
             self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
@@ -95,7 +93,7 @@ class Environment(BaseEnvironment):
                 action = self.agent.get_exploitation_action_target(state)
                 state = self.physics.step(GridActions(action))
 
-    def step(self, state: State, random=False):
+    def step(self, state: State, random=False): #update the action, reward, next state
         for state.active_agent in range(state.num_agents):
             if state.terminal:
                 continue
