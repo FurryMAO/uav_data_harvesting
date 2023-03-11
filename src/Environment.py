@@ -1,8 +1,4 @@
 import copy
-import distutils.util
-from types import SimpleNamespace
-
-import tqdm
 
 from src.DDQN.Agent import DDQNAgentParams, DDQNAgent
 from src.DDQN.Trainer import DDQNTrainerParams, DDQNTrainer

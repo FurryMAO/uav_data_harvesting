@@ -70,7 +70,6 @@ class ModelStats:
         self.log_value_callbacks.append((name, callback))
 
     def log_training_data(self, step):
-
         with self.training_log_writer.as_default():
             self.log_data(step, self.params.training_images)
 

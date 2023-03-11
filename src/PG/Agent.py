@@ -42,11 +42,13 @@ class PGAgent(object):
 
     def __init__(self, params: PGAgentParams, example_state, example_action, stats=None):
         self.params = params
-        gamma = tf.constant(self.params.gamma, dtype=float)
+        self.learning_rate =self.params.learning_rate
+        self.gamma = tf.constant(self.params.gamma, dtype=float)
         self.boolean_map_shape = example_state.get_boolean_map_shape() #get the environment map shape
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
+
 
         # Create shared inputs
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
@@ -61,8 +63,10 @@ class PGAgent(object):
 
 
         #build the policy gradient network
-        self.pg_network = self.build_model(padded_map, scalars_input, states,'PG model')
-        logits=self.pg_network.outputs
+        self.policy_network = self.build_model(padded_map, scalars_input, states,'PG model')
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+
+        logits=self.policy_network.outputs
         action_probs = tf.keras.activations.softmax(logits)
         self.soft_explore_model = Model(inputs=states, outputs=action_probs)
 
@@ -71,17 +75,9 @@ class PGAgent(object):
         self.local_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.local_map)
         self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
 
-        # Softmax explore model
-        softmax_scaling = tf.divide(q_values, tf.constant(self.params.soft_max_scaling, dtype=float))
-        softmax_action = tf.math.softmax(softmax_scaling, name='softmax_action')
-        # Exploit act model
-        self.exploit_model_target = Model(inputs=states, outputs=max_action_target)
-
         if self.params.print_summary:
             self.q_loss_model.summary()
 
-        if stats:
-            stats.set_model(self.target_network)
 
 
 
@@ -136,75 +132,43 @@ class PGAgent(object):
     def act(self, state):
         return self.get_action(state)
 
-    def _discount_and_norm_rewards(self):
-        """
-        通过回溯计算G值
-        """
-        # 先创建一个数组，大小和ep_rs一样。ep_rs记录的是每个状态的收获r。
-        discounted_ep_rs = np.zeros_like(self.ep_rs)
-        running_add = 0
-        # 从ep_rs的最后往前，逐个计算G
-        for t in reversed(range(0, len(self.ep_rs))):
-            running_add = running_add * self.gamma + self.ep_rs[t]
-            discounted_ep_rs[t] = running_add
 
-        # 归一化G值。
-        # 我们希望G值有正有负，这样比较容易学习。
-        discounted_ep_rs -= np.mean(discounted_ep_rs)
-        discounted_ep_rs /= np.std(discounted_ep_rs)
-        return discounted_ep_rs
+    def train(self):
+
+        for i in range(num_iterations):
+            # 采样一条轨迹
+            states = []
+            actions = []
+            rewards = []
+            state = env.reset()
+            done = False
+            while not done:
+                states.append(state)
+                action_probs = policy_network(tf.expand_dims(state, 0))
+                action = np.random.choice(num_actions, p=np.squeeze(action_probs))
+                actions.append(action)
+                state, reward, done, _ = env.step(action)
+                rewards.append(reward)
+            states.append(state)
 
 
-    def train(self, experiences):
-        boolean_map = experiences[0]
-        float_map = experiences[1]
-        scalars = tf.convert_to_tensor(experiences[2], dtype=tf.float32)
-        action = tf.convert_to_tensor(experiences[3], dtype=tf.int64)
-        reward = experiences[4]
-        next_boolean_map = experiences[5]
-        next_float_map = experiences[6]
-        next_scalars = tf.convert_to_tensor(experiences[7], dtype=tf.float32)
-        terminated = experiences[8]
 
-        if self.params.blind_agent:
-            q_star = self.q_star_model(
-                [next_scalars])
-        else:
-            q_star = self.q_star_model(
-                [next_boolean_map, next_float_map, next_scalars])
 
-        # Train Value network
-        with tf.GradientTape() as tape:
-            # 把s放入神经网络，就算_logits
-            _logits = self.model(np.vstack(self.ep_obs))
+        G = 0
+        Gs = []
+        for r in self.rewards[::-1]:
+            G = r + self.gamma * G
+            Gs.insert(0, G)
+        Gs = np.array(Gs)
+        Gs = (Gs - np.mean(Gs)) / (np.std(Gs) + 1e-9)
+        for state, action, G in zip(self.states, self.actions, Gs):
+            with tf.GradientTape() as tape:
+                action_probs = self.policy_network(np.array([state]))
+                log_prob = tf.math.log(action_probs[0][action])
+                loss = -log_prob * G
+            gradients = tape.gradient(loss, self.policy_network.trainable_variables)
+            self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
 
-            # 敲黑板
-            ## _logits和真正的动作的差距
-            # 差距也可以这样算,和sparse_softmax_cross_entropy_with_logits等价的:
-            # neg_log_prob = tf.reduce_sum(-tf.log(self.all_act_prob)*tf.one_hot(self.tf_acts, self.n_actions), axis=1)
-            neg_log_prob = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=_logits, labels=np.array(self.ep_as))
-
-            # 在原来的差距乘以G值，也就是以G值作为更新
-            loss = tf.reduce_mean(neg_log_prob * discounted_ep_rs_norm)
-
-        grad = tape.gradient(loss, self.model.trainable_weights)
-        self.optimizer.apply_gradients(zip(grad, self.model.trainable_weights))
-
-        self.ep_obs, self.ep_as, self.ep_rs = [], [], []  # empty episode data
-        return discounted_ep_rs_norm
-
-        #     if self.params.blind_agent:
-        #         q_loss = self.q_loss_model(
-        #             [scalars, action, reward,
-        #              terminated, q_star])
-        #     else:
-        #         q_loss = self.q_loss_model(
-        #             [boolean_map, float_map, scalars, action, reward,
-        #              terminated, q_star])
-        # q_grads = tape.gradient(q_loss, self.q_network.trainable_variables)
-        # self.q_optimizer.apply_gradients(zip(q_grads, self.q_network.trainable_variables))
-        #
-        # self.soft_update(self.params.alpha)
 
 
     def get_global_map(self, state):
