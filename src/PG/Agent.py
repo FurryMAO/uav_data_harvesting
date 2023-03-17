@@ -76,7 +76,7 @@ class PGAgent(object):
         self.total_map_model = Model(inputs=[boolean_map_input, float_map_input], outputs=self.total_map)
 
         if self.params.print_summary:
-            self.q_loss_model.summary()
+            self.policy_network.summary()
 
 
 
@@ -132,31 +132,11 @@ class PGAgent(object):
     def act(self, state):
         return self.get_action(state)
 
-
-    def train(self):
-
-        for i in range(num_iterations):
-            # 采样一条轨迹
-            states = []
-            actions = []
-            rewards = []
-            state = env.reset()
-            done = False
-            while not done:
-                states.append(state)
-                action_probs = policy_network(tf.expand_dims(state, 0))
-                action = np.random.choice(num_actions, p=np.squeeze(action_probs))
-                actions.append(action)
-                state, reward, done, _ = env.step(action)
-                rewards.append(reward)
-            states.append(state)
-
-
-
-
+    def train(self,rewardslist):
+        #calculate the
         G = 0
         Gs = []
-        for r in self.rewards[::-1]:
+        for r in rewards[::-1]:
             G = r + self.gamma * G
             Gs.insert(0, G)
         Gs = np.array(Gs)
@@ -168,8 +148,6 @@ class PGAgent(object):
                 loss = -log_prob * G
             gradients = tape.gradient(loss, self.policy_network.trainable_variables)
             self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
-
-
 
     def get_global_map(self, state):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]

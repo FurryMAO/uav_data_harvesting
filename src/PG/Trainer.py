@@ -1,5 +1,7 @@
 from src.PG.Agent import PGAgent
-from src.PG.HistoryStorage import HistoryStorage
+from src.PG.TrackStorage import TrackStorage
+import tensorflow as tf
+import numpy as np
 import tqdm
 
 
@@ -12,12 +14,13 @@ class PGTrainerParams:
         self.eval_period = 5
         self.rm_size = 50000
         self.load_model = ""
+        self.reward=[]
 
 
 class PGTrainer:
     def __init__(self, params: PGTrainerParams, agent: PGAgent):
         self.params = params
-        self.history_storage = HistoryStorage(size=params.rm_size)
+        self.history_storage = TrackStorage(size=params.rm_size)
         self.agent = agent
         self.use_scalar_input = self.agent.params.use_scalar_input #false
 
@@ -44,9 +47,13 @@ class PGTrainer:
                                       next_state.get_scalars(),
                                       next_state.terminal))
 
-    def train_agent(self):
+
+    def train_agent(self,rewards):
+        self.agent.train(rewards)
 
 
-        self.agent.train()
+
+
+
 
 

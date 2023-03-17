@@ -22,13 +22,14 @@ class BaseEnvironment:
         self.step_count = 0
 
     def fill_replay_memory(self):
-
         while self.trainer.should_fill_replay_memory(): #True
-
             state = copy.deepcopy(self.init_episode())
             while not state.terminal:
                 next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random)
                 state = copy.deepcopy(next_state)
+
+
+
 
     def train_episode(self):
         state = copy.deepcopy(self.init_episode())
@@ -43,7 +44,6 @@ class BaseEnvironment:
         self.episode_count += 1
         
     def run(self):
-
         self.fill_replay_memory()
 
         print('Running ', self.stats.params.log_file_name)

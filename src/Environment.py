@@ -32,15 +32,18 @@ class Environment(BaseEnvironment):
         self.rewards = Rewards(params.reward_params, stats=self.stats)
         self.physics = Physics(params=params.physics_params, stats=self.stats)
         self.algorithm_select= params.algorithm_params.__dict__
+        self.flag=0
 
         if self.algorithm_select['Policy_Gradient']==True:
             self.agent = PGAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(),stats=self.stats) #PGAGRNT( params,
             self.trainer = PGTrainer(params.trainer_params, agent=self.agent)
+            self.flag=1
         elif self.algorithm_select['DDQN']==True:
             self.agent = DDQNAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(), stats=self.stats)  # DDQNAGRNT( params,
             self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
+            self.flag=2
 
         self.display.set_channel(self.physics.channel)
 
