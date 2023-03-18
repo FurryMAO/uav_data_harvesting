@@ -20,14 +20,15 @@ class PGTrainerParams:
 class PGTrainer:
     def __init__(self, params: PGTrainerParams, agent: PGAgent):
         self.params = params
-        self.history_storage = TrackStorage(size=params.rm_size)
+        self.track_storage = TrackStorage()
         self.agent = agent
         self.use_scalar_input = self.agent.params.use_scalar_input #false
 
 
+
     def add_experience(self, state, action, reward, next_state):
         if self.use_scalar_input:
-            self.history_storage.store((state.get_device_scalars(self.agent.params.max_devices, self.agent.params.relative_scalars),
+            self.track_storage.store((state.get_device_scalars(self.agent.params.max_devices, self.agent.params.relative_scalars),
                                       state.get_uav_scalars(self.agent.params.max_uavs, self.agent.params.relative_scalars),
                                       state.get_scalars(give_position=True),
                                       action,
@@ -37,7 +38,7 @@ class PGTrainer:
                                       next_state.get_scalars(give_position=True),
                                       next_state.terminal))
         else:
-            self.history_storage.store((state.get_boolean_map(),
+            self.track_storage.store((state.get_boolean_map(),
                                       state.get_float_map(),
                                       state.get_scalars(),
                                       action,
@@ -48,11 +49,16 @@ class PGTrainer:
                                       next_state.terminal))
 
 
-    def train_agent(self,rewards):
-        self.agent.train(rewards)
+    def train_agent(self):
+        actionslist, rewardslist, stateslist=self.track_storage.get_track()
+        self.agent.train(actionslist,rewardslist,stateslist)
+        if self.track_storage.done is True:
+            self.track_storage.initialize()
+            self.track_storage.done= False
 
 
-
+    def should_fill_replay_memory(self):
+        return False
 
 
 

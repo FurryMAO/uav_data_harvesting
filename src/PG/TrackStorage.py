@@ -21,8 +21,11 @@ class TrackStorage:
     Replay memory class for RL
     """
 
-    def __init__(self, size):
+    def __init__(self):
         self.done = False
+        self.stateslist = []
+        self.actionslist = []
+        self.rewardslist = []
 
     def initialize(self):
         self.stateslist = []

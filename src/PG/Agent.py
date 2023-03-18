@@ -63,10 +63,9 @@ class PGAgent(object):
 
 
         #build the policy gradient network
-        self.policy_network = self.build_model(padded_map, scalars_input, states,'PG model')
+        self.policy_network = self.build_model(padded_map, scalars_input, states,'PG_model')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
-
-        logits=self.policy_network.outputs
+        logits=self.policy_network.output
         action_probs = tf.keras.activations.softmax(logits)
         self.soft_explore_model = Model(inputs=states, outputs=action_probs)
 
@@ -132,20 +131,27 @@ class PGAgent(object):
     def act(self, state):
         return self.get_action(state)
 
-    def train(self,rewardslist):
-        #calculate the
+    def train(self,actionslist,rewardslist,stateslist):
         G = 0
         Gs = []
-        for r in rewards[::-1]:
+        for r in rewardslist[::-1]:
             G = r + self.gamma * G
             Gs.insert(0, G)
         Gs = np.array(Gs)
         Gs = (Gs - np.mean(Gs)) / (np.std(Gs) + 1e-9)
-        for state, action, G in zip(self.states, self.actions, Gs):
+        for current_state, current_action, G in zip(stateslist, actionslist, Gs):
+            current_boolean_map_input = current_state[0]
+            current_float_map_input = current_state[1]
+            current_scalars_input = current_state[2]
+            current_map_cast = tf.cast(current_boolean_map_input, dtype=tf.float32)
+            current_padded_map = tf.concat([current_map_cast, current_float_map_input], axis=3)
             with tf.GradientTape() as tape:
-                action_probs = self.policy_network(np.array([state]))
-                log_prob = tf.math.log(action_probs[0][action])
-                loss = -log_prob * G
+                action_probs = self.policy_network(current_padded_map,current_scalars_input,current_state)
+                action_probs = tf.clip_by_value(action_probs, 1e-8, 1 - 1e-8)
+                actions_one_hot = tf.one_hot(current_action, depth=self.num_actions, on_value=1.0, off_value=0.0, dtype=float)
+                #actions_one_hot = tf.one_hot(current_action, self.policy_network.output_shape[1])
+                log_probs = tf.math.log(tf.reduce_sum(action_probs * actions_one_hot, axis=1))
+                loss = -tf.reduce_mean(log_probs * G)
             gradients = tape.gradient(loss, self.policy_network.trainable_variables)
             self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
 
