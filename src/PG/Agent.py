@@ -144,6 +144,8 @@ class PGAgent(object):
             current_float_map_input = current_state[1]
             current_scalars_input = current_state[2]
             current_map_cast = tf.cast(current_boolean_map_input, dtype=tf.float32)
+            print(current_map_cast.shape)
+            print(current_float_map_input.shape)
             current_padded_map = tf.concat([current_map_cast, current_float_map_input], axis=3)
             with tf.GradientTape() as tape:
                 action_probs = self.policy_network(current_padded_map,current_scalars_input,current_state)

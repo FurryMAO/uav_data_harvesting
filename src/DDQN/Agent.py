@@ -87,6 +87,8 @@ class DDQNAgent(object):
                       scalars_input]
 
             map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
+            #print(map_cast.shape)
+            #print(float_map_input.shape)
             padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
 
             self.q_network = self.build_model(padded_map, scalars_input, states)

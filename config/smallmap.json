@@ -54,8 +54,8 @@
         "load_model": ""
     },
     "algorithm_params": {
-        "Policy_Gradient": true,
-        "DDQN": false
+        "Policy_Gradient": false,
+        "DDQN": true
     },
 
     "agent_params": {
