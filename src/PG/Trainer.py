@@ -23,6 +23,7 @@ class PGTrainer:
         self.track_storage = TrackStorage()
         self.agent = agent
         self.use_scalar_input = self.agent.params.use_scalar_input #false
+        self.batch_size = 128
 
 
 
@@ -51,7 +52,7 @@ class PGTrainer:
 
     def train_agent(self):
         actionslist, rewardslist, stateslist=self.track_storage.get_track()
-        self.agent.train(actionslist,rewardslist,stateslist)
+        self.agent.train(actionslist,rewardslist,stateslist,self.batch_size)
         if self.track_storage.done is True:
             self.track_storage.initialize()
             self.track_storage.done= False

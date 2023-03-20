@@ -281,6 +281,7 @@ class DDQNAgent(object):
 
     def train(self, experiences):
         boolean_map = experiences[0]
+        #print("a=",boolean_map.shape)
         float_map = experiences[1]
         scalars = tf.convert_to_tensor(experiences[2], dtype=tf.float32)
         action = tf.convert_to_tensor(experiences[3], dtype=tf.int64)
