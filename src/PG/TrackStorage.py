@@ -26,11 +26,13 @@ class TrackStorage:
         self.stateslist = []
         self.actionslist = []
         self.rewardslist = []
+        self.terminationslist=[]
 
     def initialize(self):
         self.stateslist = []
         self.actionslist = []
         self.rewardslist = []
+        self.terminationslist = []
 
 
     def store(self, experiences):
@@ -48,6 +50,7 @@ class TrackStorage:
         self.stateslist.append(current_state)
         self.actionslist.append(action)
         self.rewardslist.append(reward)
+        self.terminationslist.append(terminated)
         if terminated is True:
             self.done=True
         else: self.done= False
@@ -57,7 +60,7 @@ class TrackStorage:
             self.stateslist.append(next_state)
 
     def get_track(self):
-        return self.actionslist, self.rewardslist, self.stateslist
+        return self.actionslist, self.rewardslist, self.stateslist, self.terminationslist
 
 
 
