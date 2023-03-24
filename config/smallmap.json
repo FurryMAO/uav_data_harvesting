@@ -46,7 +46,7 @@
     },
     "trainer_params": {
         "batch_size": 128,
-        "num_steps": 1e6,
+        "num_steps": 5e5,
         "rm_pre_fill_ratio": 0.5,
         "rm_pre_fill_random": true,
         "eval_period": 5,
@@ -71,7 +71,7 @@
         "gamma": 0.95,
         "soft_max_scaling": 0.1,
         "global_map_scaling": 3,
-        "local_map_size": 17,
+        "local_map_size": 10,
         "print_summary": true,
         "use_scalar_input": false,
         "blind_agent": false

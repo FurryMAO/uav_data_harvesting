@@ -23,13 +23,19 @@ class TrackStorage:
 
     def __init__(self):
         self.done = False
-        self.stateslist = []
+        self.bool_maplist = []
+        self.float_maplist = []
+        self.scalarslist = []
         self.actionslist = []
         self.rewardslist = []
         self.terminationslist=[]
 
     def initialize(self):
-        self.stateslist = []
+        #self.stateslist = []
+        self.bool_maplist=[]
+        self.float_maplist=[]
+        self.scalarslist=[]
+
         self.actionslist = []
         self.rewardslist = []
         self.terminationslist = []
@@ -39,15 +45,18 @@ class TrackStorage:
         boolean_map = experiences[0]
         float_map = experiences[1]
         scalars = tf.convert_to_tensor(experiences[2], dtype=tf.float32)
-        current_state=[boolean_map, float_map, scalars]
+        #current_state=[boolean_map, float_map, scalars]
         action = tf.convert_to_tensor(experiences[3], dtype=tf.int64)
         reward = experiences[4]
-        next_boolean_map = experiences[5]
-        next_float_map = experiences[6]
-        next_scalars = tf.convert_to_tensor(experiences[7], dtype=tf.float32)
+        # next_boolean_map = experiences[5]
+        # next_float_map = experiences[6]
+        # next_scalars = tf.convert_to_tensor(experiences[7], dtype=tf.float32)
         terminated = experiences[8]
-        next_state=[next_boolean_map, next_float_map, next_scalars]
-        self.stateslist.append(current_state)
+        #next_state=[next_boolean_map, next_float_map, next_scalars]
+        #self.stateslist.append(current_state)
+        self.bool_maplist.append(boolean_map)
+        self.float_maplist.append(float_map)
+        self.scalarslist.append(scalars)
         self.actionslist.append(action)
         self.rewardslist.append(reward)
         self.terminationslist.append(terminated)
@@ -57,10 +66,10 @@ class TrackStorage:
 
         if self.done is True:
             print("Already find one track")
-            self.stateslist.append(next_state)
+            #self.stateslist.append(next_state)
 
     def get_track(self):
-        return self.actionslist, self.rewardslist, self.stateslist, self.terminationslist
+        return self.bool_maplist, self.float_maplist, self.scalarslist, self.actionslist, self.rewardslist, self.terminationslist
 
 
 

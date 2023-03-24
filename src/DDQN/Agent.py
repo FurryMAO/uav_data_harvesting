@@ -3,7 +3,6 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
 import numpy as np
 
-
 def print_node(x):
     print(x)
     return x

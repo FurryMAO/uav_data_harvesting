@@ -51,8 +51,8 @@ class PGTrainer:
 
 
     def train_agent(self):
-        actionslist, rewardslist, stateslist,terminationslist=self.track_storage.get_track()
-        self.agent.train(actionslist,rewardslist,stateslist,terminationslist,self.batch_size)
+        bool_maplist, float_maplist, scalarslist, actionslist, rewardslist, terminationslist=self.track_storage.get_track()
+        self.agent.train(bool_maplist, float_maplist, scalarslist,actionslist,rewardslist,terminationslist,self.batch_size)
         if self.track_storage.done is True:
             self.track_storage.initialize()
             self.track_storage.done= False

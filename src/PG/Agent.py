@@ -3,7 +3,6 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
 import numpy as np
 
-
 class PGAgentParams:
     def __init__(self):
         # Convolutional part config
@@ -89,6 +88,8 @@ class PGAgent(object):
 
         if self.params.print_summary:
             self.loss_model.summary()
+        if stats:
+            stats.set_model(self.policy_network)
 
 
 
@@ -146,22 +147,20 @@ class PGAgent(object):
 
 
 
-    def train_step(self,states, actions, terminated, cumulative_rewards):
+    def train_step(self,batch_bool_maps,batch_float_maps,batch_scalars, actions, terminated, cumulative_rewards):
         with tf.GradientTape() as tape:
-            states = np.array(states)
-            states = states.flatten()
-            states = tf.convert_to_tensor(states, dtype=tf.float32)
-            actions = tf.convert_to_tensor(actions)
-            cumulative_rewards = tf.convert_to_tensor(cumulative_rewards)
+            # bool_maps=tf.convert_to_tensor(batch_bool_maps)
+            # actions = tf.convert_to_tensor(actions)
+            # cumulative_rewards = tf.convert_to_tensor(cumulative_rewards)
             loss = self.loss_model(
-                [states, actions,
+                [batch_bool_maps,batch_float_maps,batch_scalars, actions,
                  terminated, cumulative_rewards])
         gradients = tape.gradient(loss, self.policy_network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
 
 
 
-    def train(self,actionslist,rewardslist,stateslist,terminationslist,batch_size):
+    def train(self,bool_maplist, float_maplist, scalarslist,actionslist,rewardslist,terminationslist,batch_size):
         G = 0
         Gs = []
         # boolean_map_inputs =[]
@@ -180,23 +179,30 @@ class PGAgent(object):
         #     boolean_map_inputs.append(current_state[0])
         #     float_map_inputs.append(current_state[1])
         #     scalars_inputs.append(current_state[2])
-        states = np.array(stateslist)
+        #states = np.array(stateslist)
         #states=states.astype(float)
+        bool_map=np.array(bool_maplist)
+        float_map=np.array(float_maplist)
+        scalar=np.array(scalarslist)
         actions = np.array(actionslist)
         #actions=actions.astype(int)
         terminations=np.array(terminationslist)
 
-        for i in range(0, len(states), batch_size):
+        for i in range(0, len(actions), batch_size):
             # batch_boolean_map_inputs=boolean_map_inputs[i:i + batch_size]
             # batch_float_map_inputs=float_map_inputs[i:i + batch_size]
             # batch_scalars_inputs=scalars_inputs[i:i + batch_size]
-            batch_states = states[i:i + batch_size]
+            #batch_states = states[i:i + batch_size]
+            batch_bool_maps=bool_map[i:i + batch_size]
+            batch_float_maps=float_map[i:i + batch_size]
+            batch_scalars=scalar[i:i + batch_size]
+
             batch_actions = actions[i:i + batch_size]
             #batch_map_casts = tf.cast(batch_boolean_map_inputs, dtype=tf.float32)
             #batch_padded_maps = tf.concat([batch_map_casts, batch_float_map_inputs], axis=3)
             batch_rewards=cumulative_rewards[i:i + batch_size]
             batch_terminated=terminations[i:i + batch_size]
-            self.train_step(batch_states, batch_actions, batch_terminated,batch_rewards)
+            self.train_step(batch_bool_maps,batch_float_maps,batch_scalars, batch_actions, batch_terminated,batch_rewards)
 
 
     def get_global_map(self, state):
