@@ -46,13 +46,18 @@
     },
     "trainer_params": {
         "batch_size": 128,
-        "num_steps": 5e5,
+        "num_steps": 1e6,
         "rm_pre_fill_ratio": 0.5,
         "rm_pre_fill_random": true,
         "eval_period": 5,
         "rm_size": 25000,
         "load_model": ""
     },
+    "algorithm_params": {
+        "Policy_Gradient": false,
+        "DDQN": true
+    },
+
     "agent_params": {
         "conv_layers": 2,
         "conv_kernel_size": 5,
@@ -65,7 +70,7 @@
         "gamma": 0.95,
         "soft_max_scaling": 0.1,
         "global_map_scaling": 3,
-        "local_map_size": 17,
+        "local_map_size": 12,
         "print_summary": true,
         "use_scalar_input": false,
         "blind_agent": false
