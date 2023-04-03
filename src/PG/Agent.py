@@ -2,6 +2,9 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
 import numpy as np
+from tensorboard import summary as summary_lib
+# from tensorboard.plugins.custom_scalar import layout_pb2
+# from tensorboard.plugins.custom_scalar import metadata_pb2
 
 class PGAgentParams:
     def __init__(self):
@@ -46,6 +49,9 @@ class PGAgent(object):
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
+        self.log_dir = 'logs/'
+        self.summary_writer = tf.summary.create_file_writer(self.log_dir)
+        self.global_step = tf.Variable(0, trainable=False, dtype=tf.int64)
 
 
         # Create shared inputs
@@ -157,8 +163,9 @@ class PGAgent(object):
                  terminated, cumulative_rewards])
         gradients = tape.gradient(loss, self.policy_network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
-
-
+        with self.summary_writer.as_default():
+            tf.summary.scalar('loss', loss, step=self.global_step)
+            self.global_step.assign_add(1)
 
     def train(self,bool_maplist, float_maplist, scalarslist,actionslist,rewardslist,terminationslist,batch_size):
         G = 0

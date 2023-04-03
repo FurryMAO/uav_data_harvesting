@@ -1,9 +1,9 @@
-from src.DDQN.Agent import DDQNAgent
-from src.DDQN.ReplayMemory import ReplayMemory
+from src.AC.Agent import ACAgent
+from src.AC.ReplayMemory import ReplayMemory
 import tqdm
 
 
-class DDQNTrainerParams:
+class ACTrainerParams:
     def __init__(self):
         self.batch_size = 128
         self.num_steps = 1e6
@@ -14,8 +14,8 @@ class DDQNTrainerParams:
         self.load_model = ""
 
 
-class DDQNTrainer:
-    def __init__(self, params: DDQNTrainerParams, agent: DDQNAgent):
+class ACTrainer:
+    def __init__(self, params: ACTrainerParams, agent: ACAgent):
         self.params = params
         self.replay_memory = ReplayMemory(size=params.rm_size) # replaymemory ==> 50000
         self.agent = agent
@@ -23,7 +23,7 @@ class DDQNTrainer:
 
         if self.params.load_model != "": #True
             print("Loading model", self.params.load_model, "for agent")
-            self.agent.load_weights(self.params.load_model)
+            #self.agent.load_weights(self.params.load_model)
 
         self.prefill_bar = None
 

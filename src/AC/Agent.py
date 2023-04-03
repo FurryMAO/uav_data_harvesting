@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
 import numpy as np
@@ -47,7 +48,7 @@ class ACAgent(object):
     def __init__(self, params: ACAgentParams, example_state, example_action, stats=None):
 
         self.params = params
-        gamma = tf.constant(self.params.gamma, dtype=float)
+        self.gamma = tf.constant(self.params.gamma, dtype=float)
         self.boolean_map_shape = example_state.get_boolean_map_shape() #get the environment map shape
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
@@ -57,53 +58,43 @@ class ACAgent(object):
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
         reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
-        q_star_input = Input(shape=(), name='q_star_input', dtype=tf.float32)
+        td_input = Input(shape=(), name='advantages _input', dtype=tf.float32)
 
-        if self.params.blind_agent: #false
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [scalars_input]
-            self.hard_update()
-            self.q_network = self.build_blind_model(scalars_input)
-            self.target_network = self.build_blind_model(scalars_input, 'target_')
 
-        elif self.params.use_scalar_input: #False
-            devices_input = Input(shape=(3 * self.params.max_devices,), name='devices_input', dtype=tf.float32)
-            uavs_input = Input(shape=(4 * self.params.max_uavs,), name='uavs_input', dtype=tf.float32)
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [devices_input,
-                      uavs_input,
-                      scalars_input]
-            self.q_network = self.build_scalars_model(states)
-            self.target_network = self.build_scalars_model(states, 'target_')
-            self.hard_update()
+        boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
+        float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
+        scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
+        states = [boolean_map_input,
+                  float_map_input,
+                  scalars_input]
 
-        else:
-            boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
-            float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
-            scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
-            states = [boolean_map_input,
-                      float_map_input,
-                      scalars_input]
+        map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
+        padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
 
-            map_cast = tf.cast(boolean_map_input, dtype=tf.float32) #张量数据类型转换
-            #print(map_cast.shape)
-            #print(float_map_input.shape)
-            padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
+        self.critic_network = self.build_critic_model(padded_map, scalars_input, states,'critic_model')
 
-            self.q_network = self.build_model(padded_map, scalars_input, states)
-            self.target_network = self.build_model(padded_map, scalars_input, states, 'target_')
-            self.hard_update()
+        self.actor_network = self.build_actor_model(padded_map, scalars_input, states, 'actor_model')
 
-            self.global_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                          outputs=self.global_map)
-            self.local_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                         outputs=self.local_map)
-            self.total_map_model = Model(inputs=[boolean_map_input, float_map_input],
-                                         outputs=self.total_map)
+        self.global_map_model = Model(inputs=[boolean_map_input, float_map_input],
+                                      outputs=self.global_map)
+        self.local_map_model = Model(inputs=[boolean_map_input, float_map_input],
+                                     outputs=self.local_map)
+        self.total_map_model = Model(inputs=[boolean_map_input, float_map_input],
+                                     outputs=self.total_map)
 
-        q_values = self.q_network.output
-        q_target_values = self.target_network.output
+        values= self.critic_network.output
+        action_probs_logist = self.actor_network.output
+        self.critic_model = Model(inputs=states, outputs=values)
 
+        # Softmax explore model
+        softmax_scaling = tf.divide(action_probs_logist, tf.constant(self.params.soft_max_scaling, dtype=float))
+        softmax_action_possibility = tf.math.softmax(softmax_scaling, name='softmax_action_posibility')
+        self.soft_explore_model = Model(inputs=states, outputs=softmax_action_possibility)
+
+        self.a_opt = tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
+        self.c_opt=tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
+
+        '''
         # Define Q* in min(Q - (r + gamma_terminated * Q*))^2
         max_action = tf.argmax(q_values, axis=1, name='max_action', output_type=tf.int64)
         max_action_target = tf.argmax(q_target_values, axis=1, name='max_action', output_type=tf.int64)
@@ -116,31 +107,27 @@ class ACAgent(object):
         one_hot_rm_action = tf.one_hot(action_input, depth=self.num_actions, on_value=1.0, off_value=0.0, dtype=float)
         one_cold_rm_action = tf.one_hot(action_input, depth=self.num_actions, on_value=0.0, off_value=1.0, dtype=float)
         q_old = tf.stop_gradient(tf.multiply(q_values, one_cold_rm_action))
-        gamma_terminated = tf.multiply(tf.cast(tf.math.logical_not(termination_input), tf.float32), gamma)
+        gamma_terminated = tf.multiply(tf.cast(tf.math.logical_not(termination_input), tf.float32), self.gamma)
         q_update = tf.expand_dims(tf.add(reward_input, tf.multiply(q_star_input, gamma_terminated)), 1)
         q_update_hot = tf.multiply(q_update, one_hot_rm_action)
         q_new = tf.add(q_update_hot, q_old)
         q_loss = tf.losses.MeanSquaredError()(q_new, q_values)
         self.q_loss_model = Model(
             inputs=states + [action_input, reward_input, termination_input, q_star_input],
-            outputs=q_loss)
+            outputs=q_loss)'''
 
         # Exploit act model
-        self.exploit_model = Model(inputs=states, outputs=max_action)
-        self.exploit_model_target = Model(inputs=states, outputs=max_action_target)
+        # self.exploit_model = Model(inputs=states, outputs=max_action)
+        # self.exploit_model_target = Model(inputs=states, outputs=max_action_target)
 
-        # Softmax explore model
-        softmax_scaling = tf.divide(q_values, tf.constant(self.params.soft_max_scaling, dtype=float))
-        softmax_action = tf.math.softmax(softmax_scaling, name='softmax_action')
-        self.soft_explore_model = Model(inputs=states, outputs=softmax_action)
 
-        self.q_optimizer = tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
 
         if self.params.print_summary:
-            self.q_loss_model.summary()
+            self.critic_network.summary()
 
         if stats:
-            stats.set_model(self.target_network)
+            stats.set_model(self.actor_network)
+            stats.set_model(self.critic_network)
 
     def build_actor_model(self, map_proc, states_proc, inputs, name=''):
         flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
@@ -165,9 +152,6 @@ class ACAgent(object):
         model = Model(inputs=inputs, outputs=value)
 
         return model
-
-
-
 
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
@@ -200,74 +184,37 @@ class ACAgent(object):
 
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
+    def get_exploitation_action_target(self, state):
+        return self.get_action(state)
+
     def act(self, state):
-        return self.get_soft_max_exploration(state)
+        return self.get_action(state)
 
     def get_random_action(self):
         return np.random.randint(0, self.num_actions)
 
     def get_exploitation_action(self, state): # get the maximum value action
-
-        if self.params.blind_agent: #false
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model(scalars).numpy()[0]
-
-        if self.params.use_scalar_input: #false
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model([devices_in, uavs_in, scalars]).numpy()[0]
-
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-
         return self.exploit_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
 
-    def get_soft_max_exploration(self, state): # get the action base on the possibility
-
-        if self.params.blind_agent:
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model(scalars).numpy()[0]
-        elif self.params.use_scalar_input:
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model([devices_in, uavs_in, scalars]).numpy()[0]
-        else:
-            boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
-            float_map_in = state.get_float_map()[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-            p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-
-        return np.random.choice(range(self.num_actions), size=1, p=p)
-
-    def get_exploitation_action_target(self, state): # get the maximum value action for target
-
-        if self.params.blind_agent:
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model_target(scalars).numpy()[0]
-
-        if self.params.use_scalar_input:
-            devices_in = state.get_device_scalars(self.params.max_devices, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            uavs_in = state.get_uav_scalars(self.params.max_uavs, relative=self.params.relative_scalars)[tf.newaxis, ...]
-            scalars = np.array(state.get_scalars(give_position=True), dtype=np.single)[tf.newaxis, ...]
-            return self.exploit_model_target([devices_in, uavs_in, scalars]).numpy()[0]
-
+    def get_action(self, state): # get the action base on the possibility
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
+        p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
+        return np.random.choice(range(self.num_actions), size=1, p=p)
 
-        return self.exploit_model_target([boolean_map_in, float_map_in, scalars]).numpy()[0]
+    def get_exploitation_action_target(self, state):
+        return self.get_action(state)
 
-    def hard_update(self):
-        self.target_network.set_weights(self.q_network.get_weights())
 
-    def soft_update(self, alpha):
-        weights = self.q_network.get_weights()
-        target_weights = self.target_network.get_weights()
-        self.target_network.set_weights(
-            [w_new * alpha + w_old * (1. - alpha) for w_new, w_old in zip(weights, target_weights)])
+    def actor_loss(self, prob, action, td):
+        dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
+        log_prob = dist.log_prob(action)
+        loss = -log_prob*td
+        return loss
 
     def train(self, experiences):
         boolean_map = experiences[0]
@@ -280,39 +227,32 @@ class ACAgent(object):
         next_float_map = experiences[6]
         next_scalars = tf.convert_to_tensor(experiences[7], dtype=tf.float32)
         terminated = experiences[8]
-
-        if self.params.blind_agent:
-            q_star = self.q_star_model(
-                [next_scalars])
-        else:
-            q_star = self.q_star_model(
-                [next_boolean_map, next_float_map, next_scalars])
-
         # Train Value network
-        with tf.GradientTape() as tape:
+        with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
+            p = self.soft_explore_model([boolean_map, float_map, scalars])
+            v = self.critic_model(
+                [boolean_map, float_map, scalars])
+            v_ = self.critic_model(
+                [next_boolean_map, next_float_map, next_scalars])
+            td = reward + self.gamma * v_ * (1 - np.asarray(terminated, dtype=np.int32)) - v
+            a_loss = self.actor_loss(p, action, td)
+            c_loss = td ** 2
+        grads1 = tape1.gradient(a_loss, self.actor_network.trainable_variables)
+        grads2 = tape2.gradient(c_loss, self.critic_network.trainable_variables)
+        self.a_opt.apply_gradients(zip(grads1, self.actor_network.trainable_variables))
+        self.c_opt.apply_gradients(zip(grads2, self.critic_network.trainable_variables))
+        return a_loss, c_loss
 
-            if self.params.blind_agent:
-                q_loss = self.q_loss_model(
-                    [scalars, action, reward,
-                     terminated, q_star])
-            else:
-                q_loss = self.q_loss_model(
-                    [boolean_map, float_map, scalars, action, reward,
-                     terminated, q_star])
-        q_grads = tape.gradient(q_loss, self.q_network.trainable_variables)
-        self.q_optimizer.apply_gradients(zip(q_grads, self.q_network.trainable_variables))
-
-        self.soft_update(self.params.alpha)
-
-    def save_weights(self, path_to_weights):
-        self.target_network.save_weights(path_to_weights)
+    # def save_weights(self, path_to_weights):
+    #     self.target_network.save_weights(path_to_weights)
 
     def save_model(self, path_to_model):
-        self.target_network.save(path_to_model)
+        self.actor_network.save(path_to_model)
+        self.critic_network.save(path_to_model)
 
-    def load_weights(self, path_to_weights):
-        self.q_network.load_weights(path_to_weights)
-        self.hard_update()
+    # def load_weights(self, path_to_weights):
+    #     self.q_network.load_weights(path_to_weights)
+    #     self.hard_update()
 
     def get_global_map(self, state):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]

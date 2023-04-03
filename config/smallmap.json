@@ -46,7 +46,7 @@
     },
     "trainer_params": {
         "batch_size": 128,
-        "num_steps": 8e5,
+        "num_steps": 5e5,
         "rm_pre_fill_ratio": 0.5,
         "rm_pre_fill_random": true,
         "eval_period": 5,
@@ -54,8 +54,9 @@
         "load_model": ""
     },
     "algorithm_params": {
-        "Policy_Gradient": true,
-        "DDQN": false
+        "Policy_Gradient": false,
+        "DDQN": false,
+        "AC": true
     },
 
 
@@ -63,9 +64,9 @@
         "conv_layers": 2,
         "conv_kernel_size": 5,
         "conv_kernels": 16,
-        "hidden_layer_size": 256,
-        "hidden_layer_num": 3,
-        "learning_rate": 2e-05,
+        "hidden_layer_size": 128,
+        "hidden_layer_num": 2,
+        "learning_rate": 2e-04,
         "rm_size": 50000,
         "alpha": 0.005,
         "gamma": 0.95,

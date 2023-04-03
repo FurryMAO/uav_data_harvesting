@@ -4,6 +4,9 @@ from src.DDQN.Agent import DDQNAgentParams, DDQNAgent
 from src.DDQN.Trainer import DDQNTrainerParams, DDQNTrainer
 from src.PG.Agent import PGAgent, PGAgentParams
 from src.PG.Trainer import PGTrainerParams, PGTrainer
+from src.AC.Agent import ACAgent, ACAgentParams
+from src.AC.Trainer import ACTrainerParams, ACTrainer
+
 from src.Display import DHDisplay
 from src.Grid import GridParams, Grid
 from src.Physics import PhysicsParams, Physics
@@ -44,6 +47,11 @@ class Environment(BaseEnvironment):
                                    self.physics.get_example_action(), stats=self.stats)  # DDQNAGRNT( params,
             self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
             self.flag=2
+        elif self.algorithm_select['AC']==True:
+            self.agent = ACAgent(params.agent_params, self.grid.get_example_state(),
+                                 self.physics.get_example_action(), stats=self.stats)  # PGAGRNT( params,
+            self.trainer = ACTrainer(params.trainer_params, agent=self.agent)
+            self.flag = 3
 
         self.display.set_channel(self.physics.channel)
 
