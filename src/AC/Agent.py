@@ -87,10 +87,10 @@ class ACAgent(object):
         self.critic_model = Model(inputs=states, outputs=values)
 
         # Softmax explore model
-        # softmax_scaling = action_probs_logist - tf.reduce_max(action_probs_logist, axis=-1, keepdims=True)
-        # softmax_scaling = tf.divide(softmax_scaling, tf.constant(self.params.soft_max_scaling, dtype=float))
+        softmax_scaling = action_probs_logist - tf.reduce_max(action_probs_logist, axis=-1, keepdims=True)
+        softmax_scaling = tf.divide(softmax_scaling, tf.constant(self.params.soft_max_scaling, dtype=float))
         # softmax_action_possibility = tf.math.softmax(softmax_scaling, name='softmax_action_posibility')
-        action_probs =tf.keras.activations.softmax(action_probs_logist)
+        action_probs =tf.keras.activations.softmax(softmax_scaling)
         self.soft_explore_model = Model(inputs=states, outputs=action_probs )
 
         self.a_opt = tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
