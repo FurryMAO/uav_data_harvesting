@@ -87,9 +87,11 @@ class ACAgent(object):
         self.critic_model = Model(inputs=states, outputs=values)
 
         # Softmax explore model
-        softmax_scaling = tf.divide(action_probs_logist, tf.constant(self.params.soft_max_scaling, dtype=float))
-        softmax_action_possibility = tf.math.softmax(softmax_scaling, name='softmax_action_posibility')
-        self.soft_explore_model = Model(inputs=states, outputs=softmax_action_possibility)
+        # softmax_scaling = action_probs_logist - tf.reduce_max(action_probs_logist, axis=-1, keepdims=True)
+        # softmax_scaling = tf.divide(softmax_scaling, tf.constant(self.params.soft_max_scaling, dtype=float))
+        # softmax_action_possibility = tf.math.softmax(softmax_scaling, name='softmax_action_posibility')
+        action_probs =tf.keras.activations.softmax(action_probs_logist)
+        self.soft_explore_model = Model(inputs=states, outputs=action_probs )
 
         self.a_opt = tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
         self.c_opt=tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
@@ -203,8 +205,11 @@ class ACAgent(object):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-        p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-        return np.random.choice(range(self.num_actions), size=1, p=p)
+        prob = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
+        #return np.random.choice(range(self.num_actions), size=1, p=p)
+        dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
+        action = dist.sample()
+        return action
 
     def get_exploitation_action_target(self, state):
         return self.get_action(state)
