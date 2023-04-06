@@ -159,7 +159,7 @@ class ACAgent(object):
             action = np.random.choice(range(self.num_actions), size=1, p=prob_value)
         except ValueError:
             print('Invalid probabilities. Choosing a random action.')
-            action = np.random.randint(self.num_actions)
+            #action = np.random.randint(self.num_actions)
         return action
 
     # def get_action_probossiblity(self, prob_value): # get the action base on the possibility
@@ -172,12 +172,18 @@ class ACAgent(object):
         return self.get_action(state)
 
 
+    # def actor_loss(self, prob, action, td):
+    #     entropy_weight = 0.001
+    #     dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
+    #     log_prob = dist.log_prob(action)
+    #     entropy = dist.entropy()
+    #     loss = -(log_prob * td + entropy_weight * entropy)
+    #     return loss
+
     def actor_loss(self, prob, action, td):
-        entropy_weight = 0.001
         dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
         log_prob = dist.log_prob(action)
-        entropy = dist.entropy()
-        loss = -(log_prob * td + entropy_weight * entropy)
+        loss = -log_prob * td
         return loss
 
     def train(self, experiences):
