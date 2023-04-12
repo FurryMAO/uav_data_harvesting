@@ -56,7 +56,8 @@
     "algorithm_params": {
         "Policy_Gradient": false,
         "DDQN": false,
-        "AC": true
+        "AC": false,
+        "SAC": true
     },
 
 

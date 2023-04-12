@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
-from src.AC.AC_Network import Critic, Actor
+from src.SAC.SAC_Network import Critic, Actor, Value
 import numpy as np
 
 def print_node(x):
@@ -10,7 +10,7 @@ def print_node(x):
     return x
 
 
-class ACAgentParams:
+class SACAgentParams:
     def __init__(self):
         # Convolutional part config
         self.conv_layers = 2
@@ -48,24 +48,27 @@ class ACAgentParams:
 
 
 
-class ACAgent(object):
+class SACAgent(object):
 
-    def __init__(self, params: ACAgentParams, example_state, example_action, stats=None):
+    def __init__(self, params: SACAgentParams, example_state, example_action, stats=None):
 
         self.params = params
         self.gamma = tf.constant(self.params.gamma, dtype=float)
         self.boolean_map_shape = example_state.get_boolean_map_shape() #get the environment map shape
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
-        self.num_actions = len(type(example_action)) # 1
+        self.num_actions = len(type(example_action)) # 6
         self.epsilon=0.1
-        self.stats=stats
+        self.tau=0.005
+        self.alpha=0.0003
+        self.beta=0.0003
         self.boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         self.float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
         self.scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
         self.states = [self.boolean_map_input,
                   self.float_map_input,
                   self.scalars_input]
+        self.action_input=Input(shape=(), name='action_input', dtype=tf.int64)
         self.input=self.get_network_input(self.states)
 
         # self.global_map_model = Model(inputs=[self.boolean_map_input, self.float_map_input],
@@ -74,22 +77,38 @@ class ACAgent(object):
         #                              outputs=self.local_map)
         # self.total_map_model = Model(inputs=[self.boolean_map_input, self.float_map_input],
         #                              outputs=self.total_map)
-        self.critic_network = Critic()
-        #self.critic_network.build((None, self.state_dim))
-        self.actor_network = Actor()
-        #self.actor_network.build((None, self.state_dim))
-        self.critic_network(self.input)
-        self.actor_network(self.input)
-        self.a_opt = tf.optimizers.Adam(learning_rate=params.learning_rate, clipvalue=1.0)
-        self.c_opt=tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
+        self.critic_network_1 = Critic(action=self.action_input, name='critic_1')
+        self.critic_network_2 = Critic(action=self.action_input, name='critic_2')
+        self.value_network=Value(name='value')
+        self.target_value_network = Value(name='target_value')
+        self.actor_network=Actor(name='actor')
 
-        if self.params.print_summary:
-            self.critic_network.summary()
-            self.actor_network.summary()
+        self.actor_network.compile(optimizer=tf.optimizers.Adam(learning_rate=self.alpha))
+        self.critic_network_1.compile(optimizer=tf.optimizers.Adam(learning_rate=self.beta))
+        self.critic_network_2.compile(optimizer=tf.optimizers.Adam(learning_rate=self.beta))
+        self.value_network.compile(optimizer=tf.optimizers.Adam(learning_rate=self.beta))
+        self.target_value_network.compile(optimizer=tf.optimizers.Adam(learning_rate=self.beta))
+
+        # self.actor_network = Actor()
+        # #self.actor_network.build((None, self.state_dim))
+        # self.critic_network_1(self.input)
+        # self.critic_network_2(self.input)
+        # self.actor_network(self.input)
+        # self.value_network(self.input)
+        # self.target_value_network(self.input)
+        # # self.a_opt = tf.optimizers.Adam(learning_rate=params.learning_rate, clipvalue=1.0)
+        # # self.c_opt=tf.optimizers.Adam(learning_rate=params.learning_rate, amsgrad=True)
+        #
+        # if self.params.print_summary:
+        #     self.actor_network.summary()
+        #     self.value_network.summary()
+        #     self.target_value_network.summary()
+        #     self.critic_network_1.summary()
+        #     self.critic_network_2.summary()
 
         if stats:
+            stats.set_model(self.target_value_network)
             stats.set_model(self.actor_network)
-            stats.set_model(self.critic_network)
 
     def get_network_input(self, inputs):
         boolean_map_input=inputs[0]
@@ -100,8 +119,8 @@ class ACAgent(object):
         states_proc=scalars_input
         map_proc=padded_map
         flatten_map = self.create_map_proc(map_proc, name='pre') #return the flatten local and environment map
-        layer = tf.concat([flatten_map, states_proc], axis=1)
-        return layer
+        pre_input = tf.concat([flatten_map, states_proc], axis=1)
+        return pre_input
 
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
@@ -149,8 +168,8 @@ class ACAgent(object):
     #     scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
     #     return self.exploit_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
 
-    def get_action(self, state): # get the action base on the possibility
-        #action is a array with dimension(1,)
+    def get_action(self, state):  # get the action base on the possibility
+        # action is a array with dimension(1,)
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
@@ -161,9 +180,15 @@ class ACAgent(object):
             action = np.random.choice(range(self.num_actions), size=1, p=prob_value)
         except ValueError:
             print('Invalid probabilities. Choosing a random action.')
-            #action = np.random.randint(self.num_actions)
-        #print(action.shape)
+            # action = np.random.randint(self.num_actions)
+        # print(action.shape)
         return action
+
+    def get_prob_get_action(self, into): # get the action base on the possibility
+        prob_value = self.actor_network(into).numpy()[0]
+        action = np.random.choice(range(self.num_actions), size=1, p=prob_value)
+        #print(prob_value)
+        return prob_value, action
 
     # def get_action_probossiblity(self, prob_value): # get the action base on the possibility
     #     softmax_scaling = tf.divide(prob_value, tf.constant(self.params.soft_max_scaling, dtype=float))
@@ -183,11 +208,11 @@ class ACAgent(object):
     #     loss = -(log_prob * td + entropy_weight * entropy)
     #     return loss
 
-    def actor_loss(self, prob, action, td):
-        dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
-        log_prob = dist.log_prob(action)
-        loss = -log_prob * td
-        return loss
+    # def actor_loss(self, prob, action, td):
+    #     dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
+    #     log_prob = dist.log_prob(action)
+    #     loss = -log_prob * td
+    #     return loss
 
     def train(self, experiences):
         boolean_map = experiences[0]
@@ -205,24 +230,80 @@ class ACAgent(object):
         input_next=self.get_network_input([next_boolean_map, next_float_map, next_scalars])
 
         # Train Value network
-        with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
-            p= self.actor_network(input_current, training=True)
-            v = self.critic_network(input_current, training=True)
-            v_ = self.critic_network(input_next, training=True)
-            td = reward + self.gamma * v_ * (1 - np.asarray(terminated, dtype=np.int32)) - v
-            a_loss = self.actor_loss(p, action, td)
-            c_loss = td ** 2
-        grads1 = tape1.gradient(a_loss, self.actor_network.trainable_variables)
-        #tf.print("Gradients:", grads1)
-        grads2 = tape2.gradient(c_loss, self.critic_network.trainable_variables)
-        self.a_opt.apply_gradients(zip(grads1, self.actor_network.trainable_variables))
-        self.c_opt.apply_gradients(zip(grads2, self.critic_network.trainable_variables))
-        return a_loss, c_loss
+        with tf.GradientTape() as tape:
+            value = tf.squeeze(self.value_network(input_current), 1)
+            value_ = tf.squeeze(self.target_value_network(input_next), 1)
+
+            current_policy_actions, log_probs = self.get_prob_get_action(input_current)
+            self.action_input=current_policy_actions
+            #log_probs = tf.squeeze(log_probs, 1)
+            q1_new_policy = self.critic_network_1(input_current)
+            q2_new_policy = self.critic_network_2(input_current)
+            critic_value = tf.squeeze(
+                tf.math.minimum(q1_new_policy, q2_new_policy), 1)
+
+            value_target = critic_value - log_probs
+            value_loss = 0.5 * tf.keras.losses.MSE(value, value_target)
+
+        value_network_gradient = tape.gradient(value_loss,
+                                               self.value_network.trainable_variables)
+        self.value_network.optimizer.apply_gradients(zip(
+            value_network_gradient, self.value_network.trainable_variables))
+        #calculate and update actor network
+        with tf.GradientTape() as tape:
+            new_policy_actions, log_probs = self.get_prob_get_action(input_current)
+            log_probs = tf.squeeze(log_probs, 1)
+            q1_new_policy = self.critic_network_1(input_current, new_policy_actions)
+            q2_new_policy = self.critic_network_2(input_current, new_policy_actions)
+            critic_value = tf.squeeze(
+                tf.math.minimum(q1_new_policy, q2_new_policy), 1)
+
+            actor_loss = log_probs - critic_value
+            actor_loss = tf.math.reduce_mean(actor_loss)
+
+        actor_network_gradient = tape.gradient(actor_loss,
+                                               self.actor_network.trainable_variables)
+        self.actor_network.optimizer.apply_gradients(zip(
+            actor_network_gradient, self.actor_network.trainable_variables))
+        # update the cricic network
+        with tf.GradientTape(persistent=True) as tape:
+            q_hat = reward + self.gamma * value_* (1 - np.asarray(terminated, dtype=np.int32))
+            q1_old_policy = tf.squeeze(self.critic_network_1(input_current, action), 1)
+            q2_old_policy = tf.squeeze(self.critic_network_2(input_current, action), 1)
+            critic_1_loss = 0.5 * tf.keras.losses.MSE(q1_old_policy, q_hat)
+            critic_2_loss = 0.5 * tf.keras.losses.MSE(q2_old_policy, q_hat)
+
+        critic_1_network_gradient = tape.gradient(critic_1_loss,
+                                                  self.critic_network_1.trainable_variables)
+        critic_2_network_gradient = tape.gradient(critic_2_loss,
+                                                  self.critic_network_2.trainable_variables)
+
+        self.critic_network_1.optimizer.apply_gradients(zip(
+            critic_1_network_gradient, self.critic_network_1.trainable_variables))
+        self.critic_network_2.optimizer.apply_gradients(zip(
+            critic_2_network_gradient, self.critic_network_2.trainable_variables))
+
+        self.update_network_parameters()
+
+
+    def update_network_parameters(self,):
+        tau = self.tau
+        weights = []
+        targets = self.target_value_network.weights
+        for i, weight in enumerate(self.value_network.weights):
+            weights.append(weight * tau + targets[i] * (1 - tau))
+
+        self.target_value_network.set_weights(weights)
+
+
 
 
     def save_model(self, path_to_model):
         self.actor_network.save(path_to_model)
-        self.critic_network.save(path_to_model)
+        self.value_network.save(path_to_model)
+        self.target_value_network.save(path_to_model)
+        self.critic_network_1.save(path_to_model)
+        self.critic_network_2.save(path_to_model)
 
     # def get_global_map(self, state):
     #     boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
