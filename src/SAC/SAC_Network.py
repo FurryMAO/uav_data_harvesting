@@ -1,22 +1,21 @@
 import tensorflow as tf
 
 
-
 class Critic(tf.keras.Model):
-    def __init__(self,action,name='my_critic'):
-        super().__init__()
-        self.action_input = action
-        self.d1 = tf.keras.layers.Dense(128, activation='relu')
-        self.d2 = tf.keras.layers.Dense(128, activation='relu')
-        self.q = tf.keras.layers.Dense(1, activation=None)
-        self.model_name = name
+    def __init__(self, name='my_critic'):
+        super(Critic, self).__init__(name=name)
+        self.state_layer = tf.keras.layers.Dense(256, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(256, activation='relu')
+        self.concat_layer = tf.keras.layers.Concatenate()
+        self.q1_layer = tf.keras.layers.Dense(1)
 
-    def call(self, input_data):
-        pre_combine = tf.cast(self.action_input, tf.float32)
-        x = self.d1(tf.concat([input_data, pre_combine], axis=1))
-        x = self.d2(x)
-        q = self.q(x)
-        return q
+    def call(self, inputs):
+        state, action = inputs
+        state = self.state_layer(state)
+        action = self.action_layer(action)
+        concat = self.concat_layer([state, action])
+        q1 = self.q1_layer(concat)
+        return q1
 
 
 class Actor(tf.keras.Model):

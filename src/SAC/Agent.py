@@ -77,8 +77,8 @@ class SACAgent(object):
         #                              outputs=self.local_map)
         # self.total_map_model = Model(inputs=[self.boolean_map_input, self.float_map_input],
         #                              outputs=self.total_map)
-        self.critic_network_1 = Critic(action=self.action_input, name='critic_1')
-        self.critic_network_2 = Critic(action=self.action_input, name='critic_2')
+        self.critic_network_1 = Critic(name='critic_1')
+        self.critic_network_2 = Critic(name='critic_2')
         self.value_network=Value(name='value')
         self.target_value_network = Value(name='target_value')
         self.actor_network=Actor(name='actor')
@@ -175,7 +175,7 @@ class SACAgent(object):
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
         network_input = self.get_network_input([boolean_map_in, float_map_in, scalars])
         prob_value = self.actor_network(network_input).numpy()[0]
-        print(prob_value)
+        #print(prob_value)
         try:
             action = np.random.choice(range(self.num_actions), size=1, p=prob_value)
         except ValueError:
@@ -185,10 +185,11 @@ class SACAgent(object):
         return action
 
     def get_prob_get_action(self, into): # get the action base on the possibility
-        prob_value = self.actor_network(into).numpy()[0]
-        action = np.random.choice(range(self.num_actions), size=1, p=prob_value)
-        #print(prob_value)
-        return prob_value, action
+        prob_value = self.actor_network(into)
+        batch_size = tf.shape(prob_value)[0]  # 获取prob_value的第一维大小
+        actions = tf.random.categorical(prob_value, 1)  # 从prob_value中采样动作
+        #actions = tf.squeeze(actions, axis=-1)  # 去掉形状为1的维度
+        return prob_value, actions
 
     # def get_action_probossiblity(self, prob_value): # get the action base on the possibility
     #     softmax_scaling = tf.divide(prob_value, tf.constant(self.params.soft_max_scaling, dtype=float))
@@ -234,14 +235,15 @@ class SACAgent(object):
             value = tf.squeeze(self.value_network(input_current), 1)
             value_ = tf.squeeze(self.target_value_network(input_next), 1)
 
-            current_policy_actions, log_probs = self.get_prob_get_action(input_current)
-            self.action_input=current_policy_actions
+            log_probs,current_policy_actions= self.get_prob_get_action(input_current)
+
             #log_probs = tf.squeeze(log_probs, 1)
-            q1_new_policy = self.critic_network_1(input_current)
-            q2_new_policy = self.critic_network_2(input_current)
+            inputs = [input_current, current_policy_actions]
+            q1_new_policy = self.critic_network_1(inputs)
+            q2_new_policy = self.critic_network_2(inputs)
             critic_value = tf.squeeze(
                 tf.math.minimum(q1_new_policy, q2_new_policy), 1)
-
+            log_probs = tf.expand_dims(log_probs, axis=-1)
             value_target = critic_value - log_probs
             value_loss = 0.5 * tf.keras.losses.MSE(value, value_target)
 
@@ -249,10 +251,12 @@ class SACAgent(object):
                                                self.value_network.trainable_variables)
         self.value_network.optimizer.apply_gradients(zip(
             value_network_gradient, self.value_network.trainable_variables))
+
         #calculate and update actor network
         with tf.GradientTape() as tape:
             new_policy_actions, log_probs = self.get_prob_get_action(input_current)
             log_probs = tf.squeeze(log_probs, 1)
+            inputs = [input_current, current_policy_actions]
             q1_new_policy = self.critic_network_1(input_current, new_policy_actions)
             q2_new_policy = self.critic_network_2(input_current, new_policy_actions)
             critic_value = tf.squeeze(
@@ -265,6 +269,7 @@ class SACAgent(object):
                                                self.actor_network.trainable_variables)
         self.actor_network.optimizer.apply_gradients(zip(
             actor_network_gradient, self.actor_network.trainable_variables))
+
         # update the cricic network
         with tf.GradientTape(persistent=True) as tape:
             q_hat = reward + self.gamma * value_* (1 - np.asarray(terminated, dtype=np.int32))
