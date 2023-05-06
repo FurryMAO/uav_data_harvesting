@@ -4,8 +4,8 @@ import tensorflow as tf
 class Critic(tf.keras.Model):
     def __init__(self, name='my_critic'):
         super(Critic, self).__init__(name=name)
-        self.state_layer = tf.keras.layers.Dense(256, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(256, activation='relu')
+        self.state_layer = tf.keras.layers.Dense(128, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(128, activation='relu')
         self.concat_layer = tf.keras.layers.Concatenate()
         self.q1_layer = tf.keras.layers.Dense(1)
 

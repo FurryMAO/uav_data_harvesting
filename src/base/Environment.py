@@ -20,12 +20,13 @@ class BaseEnvironment:
         self.display = display
         self.episode_count = 0
         self.step_count = 0
+        self.count_in_episode=0
 
     def fill_replay_memory(self):
         while self.trainer.should_fill_replay_memory(): #True
             state = copy.deepcopy(self.init_episode())
             while not state.terminal:
-                next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random)
+                next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
                 state = copy.deepcopy(next_state)
 
 
@@ -34,11 +35,17 @@ class BaseEnvironment:
     def train_episode(self):
         state = copy.deepcopy(self.init_episode())
         self.stats.on_episode_begin(self.episode_count)
-        if self.flag==2:
+        if self.flag==2: # on policy
             while not state.is_terminal():
+                #self.count_in_episode=self.count_in_episode+1
                 state = self.step(state)
                 self.trainer.train_agent()
-        if self.flag==1:
+            # print('This is the:',self.episode_count,'episode')
+            # print('There are:',self.count_in_episode,'steps')
+            # self.count_in_episode=0
+
+
+        if self.flag==1: # off policy
             while not state.is_terminal():
                 state = self.step(state)
             self.trainer.train_agent()
@@ -49,10 +56,10 @@ class BaseEnvironment:
         self.episode_count += 1
         
     def run(self):
-        self.fill_replay_memory()
+        if self.flag==1:
+            self.fill_replay_memory()
 
         print('Running ', self.stats.params.log_file_name)
-
         bar = tqdm.tqdm(total=int(self.trainer.params.num_steps))
         last_step = 0
         while self.step_count < self.trainer.params.num_steps:
@@ -62,6 +69,7 @@ class BaseEnvironment:
 
             if self.episode_count % self.trainer.params.eval_period == 0:
                 self.test_episode()
+            #self.stats.add_log_data_callback('actor_loss', self.loss)
 
             self.stats.save_if_best()
 

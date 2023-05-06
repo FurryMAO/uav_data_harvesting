@@ -1,9 +1,9 @@
-from src.SAC.Agent import SACAgent
-from src.SAC.ReplayMemory import ReplayMemory
+from src.TAC.Agent import TACAgent
+from src.TAC.ReplayMemory import ReplayMemory
 import tqdm
 
 
-class SACTrainerParams:
+class TACTrainerParams:
     def __init__(self):
         self.batch_size = 128
         self.num_steps = 1e6
@@ -14,8 +14,8 @@ class SACTrainerParams:
         self.load_model = ""
 
 
-class SACTrainer:
-    def __init__(self, params: SACTrainerParams, agent: SACAgent):
+class TACTrainer:
+    def __init__(self, params: TACTrainerParams, agent: TACAgent):
         self.params = params
         self.replay_memory = ReplayMemory(size=params.rm_size) # replaymemory ==> 50000
         self.agent = agent

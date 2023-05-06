@@ -7,6 +7,7 @@ from src.base.GridActions import GridActions
 from src.base.GridPhysics import GridPhysics
 
 
+
 class PhysicsParams:
     def __init__(self):
         self.channel_params = ChannelParams()
@@ -34,6 +35,7 @@ class Physics(GridPhysics):
         stats.add_log_data_callback('boundary_counter', self.get_boundary_counter)
         stats.add_log_data_callback('landing_attempts', self.get_landing_attempts)
         stats.add_log_data_callback('movement_ratio', self.get_movement_ratio)
+
 
     def reset(self, state: State):
         GridPhysics.reset(self, state)
