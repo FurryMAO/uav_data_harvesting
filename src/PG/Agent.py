@@ -74,9 +74,11 @@ class PGAgent(object):
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
         logits=self.policy_network.output
         action_probs = tf.keras.activations.softmax(logits)
+
         self.soft_explore_model = Model(inputs=states, outputs=action_probs)
 
         action_probs = tf.clip_by_value(action_probs, 1e-8, 1 - 1e-8)
+        # get the action of the batch as the lable for reinforment learning
         actions_one_hot = tf.one_hot(action_input, depth=self.num_actions, on_value=1.0, off_value=0.0, dtype=float)
         # actions_one_hot = tf.one_hot(current_action, self.policy_network.output_shape[1])
         log_probs =tf.math.log(tf.reduce_sum(tf.multiply(action_probs, actions_one_hot,name='mul_hot'), axis=1, name='log_probs'))
@@ -152,14 +154,55 @@ class PGAgent(object):
         return self.get_action(state)
 
 
+    def train(self,experiences0,experiences1,experiences2,experiences3,experiences4,experiences5,experiences6,experiences7,experiences8):
+        #print(experiences3)
+        boolean_map = np.array(experiences0)
+        # print("a=",boolean_map.shape)
+        float_map = np.array(experiences1)
+        scalars= np.array(experiences2)
+        #calars = tf.convert_to_tensor(experiences2, dtype=tf.float32)
+        #action = np.array(experiences3, dtype=object).reshape(-1, 1)
+        #experiences3 = [[int(a) for a in exp] for exp in experiences3]
+        action= tf.convert_to_tensor(experiences3, dtype=tf.int64)
+        reward = experiences4
+        next_boolean_map = np.array(experiences5)
+        next_float_map = np.array(experiences6)
+        #next_scalars = np.array(experiences7)
+        next_scalars=tf.convert_to_tensor(experiences7, dtype=tf.float32)
+        terminated = np.array(experiences8).reshape(-1, 1)
+        #---------------------------------------------------------------------#
+        # print('------')
+        # print(boolean_map.shape)
+        # print(terminated.shape)
+        #print(action)
+        G = 0
+        Gs = []
+        # boolean_map_inputs =[]
+        # float_map_inputs = []
+        # scalars_inputs = []
+        for r in reward[::-1]:
+            G = r + self.gamma * G
+            Gs.insert(0, G)
+        Gs = np.array(Gs)
+        Gs = (Gs - np.mean(Gs)) / (np.std(Gs) + 1e-9)
+        cumulative_rewards = np.array(Gs, dtype=np.float32).reshape(-1, 1)
+        #print(cumulative_rewards.shape)
 
-    def train_step(self,batch_bool_maps,batch_float_maps,batch_scalars, actions, terminated, cumulative_rewards):
+        # print(boolean_map.shape)
+        # print(float_map.shape)
+        # print(scalars.shape)
+        # print(action.shape)
+        # print(terminated.shape)
+        # print(cumulative_rewards.shape)
+
+
+
         with tf.GradientTape() as tape:
             # bool_maps=tf.convert_to_tensor(batch_bool_maps)
             # actions = tf.convert_to_tensor(actions)
             # cumulative_rewards = tf.convert_to_tensor(cumulative_rewards)
             loss = self.loss_model(
-                [batch_bool_maps,batch_float_maps,batch_scalars, actions,
+                [boolean_map,float_map,scalars, action,
                  terminated, cumulative_rewards])
         gradients = tape.gradient(loss, self.policy_network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.policy_network.trainable_variables))
@@ -167,49 +210,47 @@ class PGAgent(object):
             tf.summary.scalar('loss', loss, step=self.global_step)
             self.global_step.assign_add(1)
 
-    def train(self,bool_maplist, float_maplist, scalarslist,actionslist,rewardslist,terminationslist,batch_size):
-        G = 0
-        Gs = []
-        # boolean_map_inputs =[]
-        # float_map_inputs = []
-        # scalars_inputs = []
-
-
-        for r in rewardslist[::-1]:
-            G = r + self.gamma * G
-            Gs.insert(0, G)
-        Gs = np.array(Gs)
-        Gs = (Gs - np.mean(Gs)) / (np.std(Gs) + 1e-9)
-        cumulative_rewards = np.array(Gs, dtype=np.float32)
-
-        # for current_state in stateslist:
-        #     boolean_map_inputs.append(current_state[0])
-        #     float_map_inputs.append(current_state[1])
-        #     scalars_inputs.append(current_state[2])
-        #states = np.array(stateslist)
-        #states=states.astype(float)
-        bool_map=np.array(bool_maplist)
-        float_map=np.array(float_maplist)
-        scalar=np.array(scalarslist)
-        actions = np.array(actionslist)
-        #actions=actions.astype(int)
-        terminations=np.array(terminationslist)
-
-        for i in range(0, len(actions), batch_size):
-            # batch_boolean_map_inputs=boolean_map_inputs[i:i + batch_size]
-            # batch_float_map_inputs=float_map_inputs[i:i + batch_size]
-            # batch_scalars_inputs=scalars_inputs[i:i + batch_size]
-            #batch_states = states[i:i + batch_size]
-            batch_bool_maps=bool_map[i:i + batch_size]
-            batch_float_maps=float_map[i:i + batch_size]
-            batch_scalars=scalar[i:i + batch_size]
-
-            batch_actions = actions[i:i + batch_size]
-            #batch_map_casts = tf.cast(batch_boolean_map_inputs, dtype=tf.float32)
-            #batch_padded_maps = tf.concat([batch_map_casts, batch_float_map_inputs], axis=3)
-            batch_rewards=cumulative_rewards[i:i + batch_size]
-            batch_terminated=terminations[i:i + batch_size]
-            self.train_step(batch_bool_maps,batch_float_maps,batch_scalars, batch_actions, batch_terminated,batch_rewards)
+    # def train(self,bool_maplist, float_maplist, scalarslist,actionslist,rewardslist,terminationslist,batch_size):
+    #     G = 0
+    #     Gs = []
+    #     # boolean_map_inputs =[]
+    #     # float_map_inputs = []
+    #     # scalars_inputs = []
+    #     for r in rewardslist[::-1]:
+    #         G = r + self.gamma * G
+    #         Gs.insert(0, G)
+    #     Gs = np.array(Gs)
+    #     Gs = (Gs - np.mean(Gs)) / (np.std(Gs) + 1e-9)
+    #     cumulative_rewards = np.array(Gs, dtype=np.float32)
+    #
+    #     # for current_state in stateslist:
+    #     #     boolean_map_inputs.append(current_state[0])
+    #     #     float_map_inputs.append(current_state[1])
+    #     #     scalars_inputs.append(current_state[2])
+    #     #states = np.array(stateslist)
+    #     #states=states.astype(float)
+    #     bool_map=np.array(bool_maplist)
+    #     float_map=np.array(float_maplist)
+    #     scalar=np.array(scalarslist)
+    #     actions = np.array(actionslist)
+    #     #actions=actions.astype(int)
+    #     terminations=np.array(terminationslist)
+    #
+    #     for i in range(0, len(actions), batch_size):
+    #         # batch_boolean_map_inputs=boolean_map_inputs[i:i + batch_size]
+    #         # batch_float_map_inputs=float_map_inputs[i:i + batch_size]
+    #         # batch_scalars_inputs=scalars_inputs[i:i + batch_size]
+    #         #batch_states = states[i:i + batch_size]
+    #         batch_bool_maps=bool_map[i:i + batch_size]
+    #         batch_float_maps=float_map[i:i + batch_size]
+    #         batch_scalars=scalar[i:i + batch_size]
+    #
+    #         batch_actions = actions[i:i + batch_size]
+    #         #batch_map_casts = tf.cast(batch_boolean_map_inputs, dtype=tf.float32)
+    #         #batch_padded_maps = tf.concat([batch_map_casts, batch_float_map_inputs], axis=3)
+    #         batch_rewards=cumulative_rewards[i:i + batch_size]
+    #         batch_terminated=terminations[i:i + batch_size]
+    #         self.train_step(batch_bool_maps,batch_float_maps,batch_scalars, batch_actions, batch_terminated,batch_rewards)
 
 
     def get_global_map(self, state):

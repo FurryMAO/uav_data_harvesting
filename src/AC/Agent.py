@@ -216,7 +216,8 @@ class ACAgent(object):
         # print('second chect')
         # print(boolean_map.shape)
         # print(float_map.shape)
-        # print(scalars.shape)
+        # print(action.shape)
+
 
         input_current=self.get_network_input([boolean_map, float_map, scalars])
         input_next=self.get_network_input([next_boolean_map, next_float_map, next_scalars])

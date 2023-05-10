@@ -48,11 +48,18 @@ class PPOAgent(object):
         self.num_actions = len(type(example_action)) # 1
 
 
+        # ---------------------------------------------------------------------
         # Create shared inputs
         action_input = Input(shape=(), name='action_input', dtype=tf.int64)
         reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
-        cumulative_rewards_input=Input(shape=(), name='cumulative_rewards_input', dtype=tf.float32)
+        #cumulative_rewards_input=Input(shape=(), name='cumulative_rewards_input', dtype=tf.float32)
+        advantage_input=Input(shape=(), name='advantage_input', dtype=tf.float32)
+        return_input = Input(shape=(), name='return_input', dtype=tf.float32)
+        value_input = Input(shape=(), name='value_input', dtype=tf.float32)
+        logprobability_input = Input(shape=(), name='logprobability_input', dtype=tf.float32)
+
+
 
         boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
@@ -65,7 +72,10 @@ class PPOAgent(object):
 
         #build the policy gradient network
         self.policy_network = self.build_model(padded_map, scalars_input, states,'PG_model')
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+
+
+        self.policy_optimizer = tf.keras.optimizers.Adam(learning_rate=policy_learning_rate)
+        self.value_optimizer = tf.keras.optimizers.Adam(learning_rate=value_function_learning_rate)
         logits=self.policy_network.output
         action_probs = tf.keras.activations.softmax(logits)
         self.soft_explore_model = Model(inputs=states, outputs=action_probs)
@@ -118,6 +128,15 @@ class PPOAgent(object):
         flatten_local = Flatten(name=name + 'local_flatten')(local_map)
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
+
+    def build_model(self, map_proc, states_proc, inputs, name=''):
+        flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
+        layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
+        for k in range(self.params.hidden_layer_num):
+            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
+        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
+        model = Model(inputs=inputs, outputs=output)
+        return model
 
     def build_model(self, map_proc, states_proc, inputs, name=''):
         flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map

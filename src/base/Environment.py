@@ -35,7 +35,7 @@ class BaseEnvironment:
     def train_episode(self):
         state = copy.deepcopy(self.init_episode())
         self.stats.on_episode_begin(self.episode_count)
-        if self.flag==2: # on policy
+        if self.flag==2: # on policy 走一步更新一次
             while not state.is_terminal():
                 #self.count_in_episode=self.count_in_episode+1
                 state = self.step(state)
@@ -45,7 +45,7 @@ class BaseEnvironment:
             # self.count_in_episode=0
 
 
-        if self.flag==1: # off policy
+        if self.flag==1: # off policy 走完一轮再更新
             while not state.is_terminal():
                 state = self.step(state)
             self.trainer.train_agent()

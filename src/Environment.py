@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 
 from src.DDQN.Agent import DDQNAgentParams, DDQNAgent
 from src.DDQN.Trainer import DDQNTrainerParams, DDQNTrainer
@@ -36,9 +37,13 @@ class Environment(BaseEnvironment):
         self.grid = Grid(params.grid_params, stats=self.stats)
         self.rewards = Rewards(params.reward_params, stats=self.stats)
         self.physics = Physics(params=params.physics_params, stats=self.stats)
+        #-------------自定义变量-----------------
         self.algorithm_select= params.algorithm_params.__dict__
         self.flag=0
-        self.loss=0
+        self.eps=0
+        self.eps_end=0.01
+        self.eps_start=0.6
+        self.eps_decay=0.999
         #配置agent 的信息
         if self.algorithm_select['Policy_Gradient']==True:
             self.agent = PGAgent(params.agent_params, self.grid.get_example_state(),
@@ -112,14 +117,30 @@ class Environment(BaseEnvironment):
                 action = self.agent.get_exploitation_action_target(state)
                 state = self.physics.step(GridActions(action))
 
+    def get_eps(self):
+        eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * \
+                        np.exp(-1. * self.step_count / self.eps_decay)
+        return eps_threshold
+
+
     def step(self, state: State, random=False): #update the action, reward, next state 向下存储一部 保存信息
+        self.eps=self.get_eps()
         for state.active_agent in range(state.num_agents):
             if state.terminal:
                 continue
             if random:
                 action = self.agent.get_random_action()
+            ## episollion greddy
+            # else:
+            #     if np.random.uniform() < self.eps:
+            #         action = self.agent.get_random_action()
+            #     else:
+            #         # choose the best action according to current Q table
+            #         action = self.agent.act(state)
             else:
                 action = self.agent.act(state)
+
+
 
             if not self.first_action:
                 reward = self.rewards.calculate_reward(self.last_states[state.active_agent],
