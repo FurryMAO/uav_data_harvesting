@@ -17,7 +17,7 @@ class BaseDisplay:
             green = np.zeros((area_y_max, area_x_max))
 
         nfz = np.expand_dims(env_map.nfz, -1)
-        lz = np.expand_dims(env_map.landing_zone, -1)
+        lz = np.expand_dims(env_map.start_landing_zone, -1)
         green = np.expand_dims(green, -1)
 
         neither = np.logical_not(np.logical_or(np.logical_or(nfz, lz), green))

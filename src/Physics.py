@@ -56,15 +56,17 @@ class Physics(GridPhysics):
 
         indices = []
         device_list = self.state.device_list
+        jammer_list= self.state.jammer_list
         for position in positions:
-            data_rate, idx = device_list.get_best_data_rate(position, self.channel)
+            local_interference=jammer_list.get_interference(position, self.channel)
+            data_rate, idx = device_list.get_best_data_rate(position, self.channel, local_interference)
             device_list.collect_data(data_rate, idx)
             indices.append(idx)
 
         self.state.collected = device_list.get_collected_map(self.state.shape)
         self.state.device_map = device_list.get_data_map(self.state.shape)
 
-        idx = max(set(indices), key=indices.count)
+        idx = max(set(indices), key=indices.count) #从列表indices中找到出现次数最多的元素，并将其赋值给变量idx
         self.state.set_device_com(idx)
 
         return idx

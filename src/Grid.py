@@ -1,6 +1,7 @@
 import numpy as np
 
 from src.DeviceManager import DeviceManagerParams, DeviceManager
+from src.JammerManager import JammerManagerParams,JammerManager
 from src.State import State
 from src.base.BaseGrid import BaseGrid, BaseGridParams
 
@@ -29,9 +30,22 @@ class Grid(BaseGrid):
         self.device_manager = DeviceManager(self.params.device_manager)
 
         free_space = np.logical_not(
-            np.logical_or(self.map_image.obstacles, self.map_image.landing_zone)) # Free space is the place not block the signal
+            np.logical_or(self.map_image.obstacles, self.map_image.start_landing_zone)) # Free space is the place not block the signal
         free_idcs = np.where(free_space)
         self.device_positions = list(zip(free_idcs[1], free_idcs[0])) #set a device position at the free place
+###################--------------------------------------------------##########################@
+        self.jammer_list= None
+        self.jammer_manager = JammerManager(self.params.jammer_manager)
+        possible_place = np.logical_and(
+            np.logical_not(self.map_image.nfz),
+            np.logical_not(self.map_image.obstacles_),
+            np.logical_not(self.map_image.start_landing_zone)
+        )
+        possible_idcs = np.where(possible_place)
+        self.jammer_positions = list(zip(possible_idcs[1], possible_idcs[0]))
+
+
+
 
     def get_comm_obstacles(self):
         return self.map_image.obstacles
@@ -50,6 +64,9 @@ class Grid(BaseGrid):
 
     def init_episode(self):
         self.device_list = self.device_manager.generate_device_list(self.device_positions)
+        #################-------------------------------##########@
+        # add jammer_list
+        self.jammer_list=self.jammer_manager.generate_jammer_list(self.jammer_positions)
 
         if self.params.multi_agent:
             self.num_agents = int(np.random.randint(low=self.params.num_agents_range[0],
@@ -58,6 +75,9 @@ class Grid(BaseGrid):
             self.num_agents = 1
         state = State(self.map_image, self.num_agents, self.params.multi_agent)
         state.reset_devices(self.device_list)
+
+        ####------####@ add to rest jammer
+        state.reset_jammer(self.jammer_list)
 
         if self.params.fixed_starting_idcs:
             state.positions = self.params.starting_position
@@ -78,6 +98,9 @@ class Grid(BaseGrid):
     def init_scenario(self, scenario):
         self.device_list = scenario.device_list
         self.num_agents = scenario.init_state.num_agents
+
+        ##--------------------------------------------###@
+        self.jammer_list=scenario.jammer_list
 
         return scenario.init_state
 

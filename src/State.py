@@ -8,6 +8,9 @@ class State(BaseState):
     def __init__(self, map_init: Map, num_agents: int, multi_agent: bool):
         super().__init__(map_init)
         self.device_list = None
+
+    ####--------####@
+        self.jammer_list= None
         self.device_map = None  # Floating point sparse matrix showing devices and their data to be collected
 
         # Multi-agent active agent decides on properties
@@ -99,10 +102,10 @@ class State(BaseState):
         if self.multi_agent:
             padded_rest = pad_centered(self,
                                        np.concatenate(
-                                           [np.expand_dims(self.landing_zone, -1), self.get_agent_bool_maps()],
+                                           [np.expand_dims(self.start_landing_zone, -1), self.get_agent_bool_maps()],
                                            axis=-1), 0)
         else:
-            padded_rest = pad_centered(self, np.expand_dims(self.landing_zone, -1), 0)
+            padded_rest = pad_centered(self, np.expand_dims(self.start_landing_zone, -1), 0)
         return np.concatenate([padded_red, padded_rest], axis=-1) # have rgb 3D
 
     def get_boolean_map_shape(self):
@@ -119,7 +122,7 @@ class State(BaseState):
         return self.get_float_map().shape
 
     def is_in_landing_zone(self):
-        return self.landing_zone[self.position[1]][self.position[0]]
+        return self.start_landing_zone[self.position[1]][self.position[0]]
 
     def is_in_no_fly_zone(self):
         # Out of bounds is implicitly nfz
@@ -146,11 +149,17 @@ class State(BaseState):
     def get_collected_data(self):
         return np.sum(self.collected)
 
+
     def reset_devices(self, device_list):
         self.device_map = device_list.get_data_map(self.no_fly_zone.shape)
         self.collected = np.zeros(self.no_fly_zone.shape, dtype=float)
         self.initial_total_data = device_list.get_total_data()
         self.device_list = device_list
+
+     ##############----#########@
+    #add to reset the jammer
+    def reset_jammer(self, jammer_list):
+        self.jammer_list=jammer_list
 
     def get_agent_bool_maps(self):
         agent_map = np.zeros(self.no_fly_zone.shape + (1,), dtype=bool)

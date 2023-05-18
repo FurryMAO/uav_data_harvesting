@@ -36,7 +36,14 @@ class DHDisplay(BaseDisplay):
 
         for device in first_state.device_list.get_devices():
             ax_traj.add_patch(
-                patches.Circle(np.array(device.position) , 0.2, facecolor=device.color,
+                patches.Rectangle(np.array(device.position) - [0.2, 0.2], 0.4, 0.4, facecolor=device.color,
+                                  edgecolor="black"))
+
+################-----------------------------------------##################@
+        #Draw the jammer in the map
+        for jammer in first_state.jammer_list.get_jammers():
+            ax_traj.add_patch(
+                patches.Circle(np.array(jammer.position), 0.5, facecolor='white',
                                edgecolor="black"))
 
         self.draw_start_and_end(trajectory)

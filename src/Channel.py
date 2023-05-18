@@ -22,6 +22,8 @@ class Channel:
         self.los_shadowing_sigma = None
         self.nlos_shadowing_sigma = None
         self.total_shadow_map = load_or_create_shadowing(self.params.map_path)
+        ###----------------#########@
+        self.interference=0
 
     def reset(self, area_size):
         self._norm_distance = np.sqrt(2) * 0.5 * area_size * self.params.cell_size
@@ -39,7 +41,10 @@ class Channel:
 
         return rate
 
+
+
     def compute_rate(self, uav_pos, device_pos):
+
         dist = np.sqrt(
             ((device_pos[0] - uav_pos[0]) * self.params.cell_size) ** 2 +
             ((device_pos[1] - uav_pos[1]) * self.params.cell_size) ** 2 +
@@ -52,7 +57,8 @@ class Channel:
         else:
             snr = self.los_norm_factor * dist ** (
                 -self.params.los_path_loss_exp) * 10 ** (np.random.normal(0., self.los_shadowing_sigma) / 10)
+        # print('the snr is:')
+        # print(snr)
+        #rate = np.log2(1 + snr)
 
-        rate = np.log2(1 + snr)
-
-        return rate
+        return snr

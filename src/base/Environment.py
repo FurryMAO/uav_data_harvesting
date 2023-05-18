@@ -30,8 +30,6 @@ class BaseEnvironment:
                 state = copy.deepcopy(next_state)
 
 
-
-
     def train_episode(self):
         state = copy.deepcopy(self.init_episode())
         self.stats.on_episode_begin(self.episode_count)
@@ -56,7 +54,7 @@ class BaseEnvironment:
         self.episode_count += 1
         
     def run(self):
-        if self.flag==1:
+        if self.flag==2:
             self.fill_replay_memory()
 
         print('Running ', self.stats.params.log_file_name)

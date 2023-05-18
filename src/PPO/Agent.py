@@ -59,7 +59,8 @@ class PPOAgent(object):
         value_input = Input(shape=(), name='value_input', dtype=tf.float32)
         logprobability_input = Input(shape=(), name='logprobability_input', dtype=tf.float32)
 
-
+        policy_learning_rate=self.params.policy_learning_rate
+        value_function_learning_rate=self.params.value_function_learning_rate
 
         boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
@@ -71,16 +72,15 @@ class PPOAgent(object):
 
 
         #build the policy gradient network
-        self.policy_network = self.build_model(padded_map, scalars_input, states,'PG_model')
+        self.actor_network = self.build_actor_model(padded_map, scalars_input, states,'actor_model')
+        self.critic_network = self.build_critic_model(padded_map, scalars_input, states, 'critic_model')
 
 
         self.policy_optimizer = tf.keras.optimizers.Adam(learning_rate=policy_learning_rate)
         self.value_optimizer = tf.keras.optimizers.Adam(learning_rate=value_function_learning_rate)
-        logits=self.policy_network.output
-        action_probs = tf.keras.activations.softmax(logits)
+        action_probs=self.policy_network.output
         self.soft_explore_model = Model(inputs=states, outputs=action_probs)
 
-        action_probs = tf.clip_by_value(action_probs, 1e-8, 1 - 1e-8)
         actions_one_hot = tf.one_hot(action_input, depth=self.num_actions, on_value=1.0, off_value=0.0, dtype=float)
         # actions_one_hot = tf.one_hot(current_action, self.policy_network.output_shape[1])
         log_probs =tf.math.log(tf.reduce_sum(tf.multiply(action_probs, actions_one_hot,name='mul_hot'), axis=1, name='log_probs'))
@@ -129,21 +129,24 @@ class PPOAgent(object):
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
 
-    def build_model(self, map_proc, states_proc, inputs, name=''):
+    def build_actor_model(self, map_proc, states_proc, inputs, name=''):
         flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
         layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
         for k in range(self.params.hidden_layer_num):
             layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
         output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-        model = Model(inputs=inputs, outputs=output)
+        action_probs = tf.keras.activations.softmax(output)
+        action_probs = tf.clip_by_value(action_probs, 1e-8, 1 - 1e-8)
+        model = Model(inputs=inputs, outputs=action_probs)
         return model
 
-    def build_model(self, map_proc, states_proc, inputs, name=''):
-        flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
+    def build_critic_model(self, map_proc, states_proc, inputs, name=''):
+        flatten_map = self.create_map_proc(map_proc, name)  # return the flatten local and environment map
         layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
         for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(layer)
-        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
+            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
+                layer)
+        output = Dense(1, activation='linear', name=name + 'output_layer')(layer)
         model = Model(inputs=inputs, outputs=output)
         return model
 
