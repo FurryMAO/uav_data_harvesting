@@ -40,11 +40,11 @@
             "fixed_jammers": false,
             "jammer_count_range": [
                 1,
-                2
+                3
             ],
             "power_range": [
-                5,
-                10
+                15,
+                20
             ]
         },
         "multi_agent": false

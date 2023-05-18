@@ -182,3 +182,11 @@ class JammerList:
 
     def get_jammer(self, idx):
         return self.jammers[idx]
+
+    def get_power_map(self, shape):
+        power_map = np.zeros(shape, dtype=float)
+
+        for jammer in self.jammers:
+            power_map[jammer.position[1], jammer.position[0]] = jammer.power
+
+        return power_map

@@ -11,6 +11,10 @@ class State(BaseState):
 
     ####--------####@
         self.jammer_list= None
+        self.jammer_map=None
+
+
+
         self.device_map = None  # Floating point sparse matrix showing devices and their data to be collected
 
         # Multi-agent active agent decides on properties
@@ -116,7 +120,11 @@ class State(BaseState):
             return pad_centered(self, np.concatenate([np.expand_dims(self.device_map, -1),
                                                       self.get_agent_float_maps()], axis=-1), 0)
         else:
-            return pad_centered(self, np.expand_dims(self.device_map, -1), 0)
+            ########------------#######@
+            pad1=pad_centered(self, np.expand_dims(self.device_map, -1), 0)
+            pad2=pad_centered(self, np.expand_dims(self.jammer_map, -1), 0)
+
+            return np.concatenate([pad1, pad2], axis=-1)
 
     def get_float_map_shape(self):
         return self.get_float_map().shape
@@ -159,6 +167,7 @@ class State(BaseState):
      ##############----#########@
     #add to reset the jammer
     def reset_jammer(self, jammer_list):
+        self.jammer_map = jammer_list.get_power_map(self.no_fly_zone.shape)
         self.jammer_list=jammer_list
 
     def get_agent_bool_maps(self):

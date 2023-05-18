@@ -100,7 +100,7 @@ class Grid(BaseGrid):
         self.num_agents = scenario.init_state.num_agents
 
         ##--------------------------------------------###@
-        self.jammer_list=scenario.jammer_list
+        self.jammer_list = scenario.jammer_list
 
         return scenario.init_state
 
@@ -112,4 +112,8 @@ class Grid(BaseGrid):
         state = State(self.map_image, num_agents, self.params.multi_agent)
         state.device_map = np.zeros(self.shape, dtype=float)
         state.collected = np.zeros(self.shape, dtype=float)
+        #-------------###@
+        state.jammer_map = np.zeros(self.shape, dtype=float)
+
+
         return state
