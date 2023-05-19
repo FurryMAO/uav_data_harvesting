@@ -43,8 +43,8 @@
                 3
             ],
             "power_range": [
-                15,
-                20
+                150,
+                200
             ]
         },
         "multi_agent": false

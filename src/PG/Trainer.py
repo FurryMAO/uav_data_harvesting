@@ -20,12 +20,16 @@ class PGTrainer:
         self.agent = agent
         self.use_scalar_input = self.agent.params.use_scalar_input #false
         self.stop=False
-        self.action_buffer = np.zeros(size, dtype=np.int32)
-        self.advantage_buffer = np.zeros(size, dtype=np.float32)
-        self.reward_buffer = np.zeros(size, dtype=np.float32)
-        self.return_buffer = np.zeros(size, dtype=np.float32)
-        self.value_buffer = np.zeros(size, dtype=np.float32)
-        self.logprobability_buffer = np.zeros(size, dtype=np.float32)
+
+        self.b_list=[]
+        self.f_list=[]
+        self.s_list=[]
+        self.a_list=[]
+        self.r_list=[]
+        self.nb_list=[]
+        self.nf_list=[]
+        self.ns_list=[]
+        self.nt_list=[]
 
 
 
@@ -57,7 +61,6 @@ class PGTrainer:
 
 
     def store(self, experiences):
-
         #----------------------------------------#
 
         boolean_map = experiences[0]

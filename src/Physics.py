@@ -59,6 +59,7 @@ class Physics(GridPhysics):
         jammer_list= self.state.jammer_list
         for position in positions:
             local_interference=jammer_list.get_interference(position, self.channel)
+            #print(local_interference)
             data_rate, idx = device_list.get_best_data_rate(position, self.channel, local_interference)
             device_list.collect_data(data_rate, idx)
             indices.append(idx)

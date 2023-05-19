@@ -64,7 +64,7 @@ class IoTDevice:
         sinr=snr / (1 + local_interference)
         # self.data_rate_timeseries.append(rate)
         rate=np.log2(1 + sinr)
-        if rate>0.001:
+        if rate>0.002:
             return rate
         else:
             return 0
@@ -86,8 +86,6 @@ class DeviceList:
         # self.devices = [IoTDevice(device) for device in params]
         # self.devices = IoTDevice(params)
 
-
-
     def get_data_map(self, shape):
         data_map = np.zeros(shape, dtype=float)
 
@@ -108,8 +106,14 @@ class DeviceList:
         """
         Get the best data rate and the corresponding device index
         """
-        data_rates = np.array(
-            [device.get_data_rate(pos, channel, local_interference) if not device.depleted else 0 for device in self.devices])
+        data_rates = []
+        for device in self.devices:
+            if not device.depleted:
+                rate = device.get_data_rate(pos, channel, local_interference)
+            else:
+                rate = 0
+            data_rates.append(rate)
+        data_rates = np.array(data_rates)
         if data_rates.any() and max(data_rates)!=0:
             idx = np.argmax(data_rates)
         else: idx= -1

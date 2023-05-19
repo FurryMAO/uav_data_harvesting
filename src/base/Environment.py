@@ -56,7 +56,6 @@ class BaseEnvironment:
     def run(self):
         if self.flag==2:
             self.fill_replay_memory()
-
         print('Running ', self.stats.params.log_file_name)
         bar = tqdm.tqdm(total=int(self.trainer.params.num_steps))
         last_step = 0

@@ -123,6 +123,9 @@ class State(BaseState):
             ########------------#######@
             pad1=pad_centered(self, np.expand_dims(self.device_map, -1), 0)
             pad2=pad_centered(self, np.expand_dims(self.jammer_map, -1), 0)
+            # print(pad1.shape)
+            # print(pad2.shape)
+
 
             return np.concatenate([pad1, pad2], axis=-1)
 
