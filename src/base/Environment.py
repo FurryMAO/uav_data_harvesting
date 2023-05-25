@@ -26,7 +26,10 @@ class BaseEnvironment:
         while self.trainer.should_fill_replay_memory(): #True
             state = copy.deepcopy(self.init_episode())
             while not state.terminal:
-                next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
+                if self.flag == 2:
+                    next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
+                if self.flag==1:
+                    next_state = self.step_on(state, random=self.trainer.params.rm_pre_fill_random)
                 state = copy.deepcopy(next_state)
 
 
@@ -41,21 +44,24 @@ class BaseEnvironment:
             # print('This is the:',self.episode_count,'episode')
             # print('There are:',self.count_in_episode,'steps')
             # self.count_in_episode=0
+            self.episode_count += 1
+            self.stats.on_episode_end(self.episode_count)
+            self.stats.log_training_data(step=self.step_count)
 
-
-        if self.flag==1: # off policy 走完一轮再更新
+        if self.flag==1: # on policy 走一把更新一次
             while not state.is_terminal():
-                state = self.step(state)
+                #self.count_in_episode=self.count_in_episode+1
+                state = self.step_on(state)
             self.trainer.train_agent()
+            # print('This is the:',self.episode_count,'episode')
+            # print('There are:',self.count_in_episode,'steps')
+            # self.count_in_episode=0
+            self.episode_count += 1
+            self.stats.on_episode_end(self.episode_count)
+            self.stats.log_training_data(step=self.step_count)
 
-        self.stats.on_episode_end(self.episode_count)
-        self.stats.log_training_data(step=self.step_count)
-
-        self.episode_count += 1
-        
     def run(self):
-        if self.flag==2:
-            self.fill_replay_memory()
+        self.fill_replay_memory()
         print('Running ', self.stats.params.log_file_name)
         bar = tqdm.tqdm(total=int(self.trainer.params.num_steps))
         last_step = 0
@@ -73,6 +79,9 @@ class BaseEnvironment:
         self.stats.training_ended()
 
     def step(self, state, random=False):
+        pass
+
+    def step_on(self, state, random=False):
         pass
 
     def init_episode(self, init_state=None):

@@ -49,9 +49,11 @@ class ReplayMemory:
         r = self.size
         if not self.full:
             r = self.k
-        random_idx = np.random.choice(r, size=batch_size, replace=False)
-        random_idx[0] = self.head  # Always add the latest one
-
+        if self.head >= batch_size:
+            random_idx = np.arange(self.head - batch_size, self.head)
+        else:
+            remaining = batch_size - self.head
+            random_idx = np.concatenate([np.arange(self.size - remaining, self.size), np.arange(0, self.head)])
         return [mem[random_idx] for mem in self.memory]
 
     def get(self, start, length):

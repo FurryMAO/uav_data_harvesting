@@ -60,17 +60,17 @@
         "batch_size": 128,
         "num_steps": 5e5,
         "rm_pre_fill_ratio": 0.5,
-        "rm_pre_fill_random": true,
+        "rm_pre_fill_random": false,
         "eval_period": 5,
         "rm_size": 50000,
         "load_model": ""
     },
     "algorithm_params": {
         "Policy_Gradient": false,
-        "DDQN": true,
+        "DDQN": false,
         "AC": false,
         "TAC": false,
-        "PPO": false
+        "PPO": true
     },
 
 
