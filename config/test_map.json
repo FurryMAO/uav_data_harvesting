@@ -58,9 +58,9 @@
     },
     "trainer_params": {
         "batch_size": 128,
-        "num_steps": 5e5,
+        "num_steps": 2e6,
         "rm_pre_fill_ratio": 0.5,
-        "rm_pre_fill_random": false,
+        "rm_pre_fill_random": true,
         "eval_period": 5,
         "rm_size": 50000,
         "load_model": ""
@@ -68,9 +68,9 @@
     "algorithm_params": {
         "Policy_Gradient": false,
         "DDQN": false,
-        "AC": false,
+        "AC": true,
         "TAC": false,
-        "PPO": true
+        "PPO": false
     },
 
 
@@ -81,8 +81,8 @@
         "hidden_layer_size": 256,
         "hidden_layer_num": 3,
         "learning_rate": 3e-05,
-        "policy_learning_rate":3e-4,
-        "value_function_learning_rate":1e-3,
+        "actor_learning_rate": 2e-04,
+        "critic_learning_rate": 1e-03,
         "rm_size": 50000,
         "alpha": 0.005,
         "gamma": 0.95,

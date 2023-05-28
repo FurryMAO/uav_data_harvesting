@@ -55,7 +55,7 @@ class Environment(BaseEnvironment):
             self.agent = ACAgent(params.agent_params, self.grid.get_example_state(),
                                  self.physics.get_example_action(), stats=self.stats)  # PGAGRNT( params,
             self.trainer = ACTrainer(params.trainer_params, agent=self.agent)
-            self.flag = 2
+            self.flag = 1
 
         elif self.algorithm_select['PPO'] == True:
             self.agent = PPOAgent(params.agent_params, self.grid.get_example_state(),

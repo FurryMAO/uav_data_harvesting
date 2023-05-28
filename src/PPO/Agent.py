@@ -54,8 +54,10 @@ class PPOAgent(object):
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
         self.buffer = []  # 数据缓冲池
-        self.actor_optimizer = tf.optimizers.Adam(2e-4)  # Actor优化器
-        self.critic_optimizer = tf.optimizers.Adam(2e-4)  # Critic优化器
+        actor_learning_rate=self.params.actor_learning_rate
+        critic_learning_rate=self.params.critic_learning_rate
+        self.actor_optimizer = tf.optimizers.Adam(actor_learning_rate)  # Actor优化器
+        self.critic_optimizer = tf.optimizers.Adam(critic_learning_rate)  # Critic优化器
         self.Transition = namedtuple('Transition', ['state', 'action', 'a_log_prob', 'reward', 'next_state'])
 
 
@@ -66,10 +68,7 @@ class PPOAgent(object):
         termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
 
         ####--------------#######@自定义变量集合
-        advantage_input= Input(shape=(), name='advantage_input', dtype=tf.float32)
-        return_input=Input(shape=(), name='return_input', dtype=tf.float32)
-        value_input=Input(shape=(), name='value_input', dtype=tf.float32)
-        logprobability_input=Input(shape=(), name='logprob_input', dtype=tf.float32)
+
         self.epsilon=0.2
         boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
@@ -108,8 +107,8 @@ class PPOAgent(object):
         scaled_logits = logits
         softmax_scaling = tf.divide(scaled_logits, tf.constant(self.params.soft_max_scaling, dtype=float))
         softmax_action = tf.keras.activations.softmax(softmax_scaling)
-        #softmax_action= tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
-        logprobability = tf.reduce_sum(tf.one_hot(action_input, depth=self.num_actions) * softmax_action, axis=1)
+        softmax_action= tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
+
         self.soft_explore_model = Model(inputs=states, outputs=softmax_action)
 
 
@@ -212,11 +211,12 @@ class PPOAgent(object):
         old_action_log_prob = tf.convert_to_tensor(experiences[9], dtype=tf.float32)
         #old_action_log_prob= tf.expand_dims(old_action_log_prob, axis=1)
         # 通过MC方法循环计算R(st)
-        R = 0
-        Rs = []
-        for r in reward[::-1]:
-            R = r + self.gamma * R
-            Rs.insert(0, R)
+        discounted = []
+        r = 0
+        for reward, done in zip(reward[::-1], terminated[::-1]):
+            r = reward + self.gamma * r * (1. - done)  # fixed off by one bug
+            discounted.append(r)
+        Rs= discounted[::-1]
         Rs = tf.convert_to_tensor(Rs, dtype=tf.float32)
         with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
             v = self.critic_model([boolean_map, float_map, scalars])
@@ -225,6 +225,7 @@ class PPOAgent(object):
             advantage = tf.stop_gradient(delta)  # 断开梯度连接
             pi = self.soft_explore_model([boolean_map, float_map, scalars])
             action = tf.cast(action, dtype=tf.int32)
+            action = tf.expand_dims(action, axis=1)
             indices = tf.expand_dims(tf.range(action.shape[0]), axis=1)
             indices = tf.concat([indices, action], axis=1)
             pi_a = tf.gather_nd(pi, indices)  # 动作的概率值pi(at|st), [b]

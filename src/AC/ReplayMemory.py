@@ -1,19 +1,16 @@
 import numpy as np
 
-
 def shape(exp):
     if type(exp) is np.ndarray:
         return list(exp.shape)
     else:
         return []
 
-
 def type_of(exp):
     if type(exp) is np.ndarray:
         return exp.dtype
     else:
         return type(exp)
-
 
 class ReplayMemory:
     """
@@ -22,8 +19,6 @@ class ReplayMemory:
 
     def __init__(self, size):
         self.k = 0
-        self.head = -1
-        self.full = False
         self.size = size
         self.memory = None
 
@@ -39,36 +34,14 @@ class ReplayMemory:
         for e, mem in zip(experience, self.memory):
             mem[self.k] = e
 
-        self.head = self.k
         self.k += 1
-        if self.k >= self.size:
-            self.k = 0
-            self.full = True
 
-    def sample(self, batch_size):
-        r = self.size
-        if not self.full:
-            r = self.k
-        random_idx = np.random.choice(r, size=batch_size, replace=False)
-        random_idx[0] = self.head  # Always add the latest one
-
-        return [mem[random_idx] for mem in self.memory]
-
-    def get(self, start, length):
-        return [mem[start:start + length] for mem in self.memory]
-
-    def get_size(self):
-        if self.full:
-            return self.size
-        return self.k
-
-    def get_max_size(self):
-        return self.size
+    def sample(self):
+        if self.memory is None:
+            return None
+        else:
+            return [mem[:self.k] for mem in self.memory]
 
     def reset(self):
         self.k = 0
-        self.head = -1
-        self.full = False
-
-    def shuffle(self):
-        self.memory = self.sample(self.get_size())
+        self.memory = None
