@@ -26,10 +26,7 @@ class BaseEnvironment:
         while self.trainer.should_fill_replay_memory(): #True
             state = copy.deepcopy(self.init_episode())
             while not state.terminal:
-                if self.flag == 2:
-                    next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
-                if self.flag==1:
-                    next_state = self.step_on(state, random=self.trainer.params.rm_pre_fill_random)
+                next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
                 state = copy.deepcopy(next_state)
 
 
@@ -41,7 +38,6 @@ class BaseEnvironment:
                 #self.count_in_episode=self.count_in_episode+1
                 state = self.step(state)
                 self.trainer.train_agent()
-
             # print('This is the:',self.episode_count,'episode')
             # print('There are:',self.count_in_episode,'steps')
             # self.count_in_episode=0
@@ -60,6 +56,24 @@ class BaseEnvironment:
             self.episode_count += 1
             self.stats.on_episode_end(self.episode_count)
             self.stats.log_training_data(step=self.step_count)
+
+        if self.flag==3: # on policy 走5把更新一次
+            update_interval = 32
+            flag = False
+            while not state.is_terminal():
+                if flag == False or not state.is_terminal():
+                    state = self.step_ppo(state)
+
+                if self.episode_count % update_interval == 0 and state.is_terminal():
+                    self.trainer.train_agent()
+                    flag = True
+            self.episode_count += 1
+            self.stats.on_episode_end(self.episode_count)
+            self.stats.log_training_data(step=self.step_count)
+
+
+
+
 
     def run(self):
         #self.fill_replay_memory()
@@ -82,7 +96,7 @@ class BaseEnvironment:
     def step(self, state, random=False):
         pass
 
-    def step_on(self, state, random=False):
+    def step_ppo(self, state, random=False):
         pass
 
     def init_episode(self, init_state=None):

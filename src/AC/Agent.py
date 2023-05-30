@@ -272,7 +272,6 @@ class ACAgent(object):
             input_current=[boolean_map,
                   float_map,
                   scalars]
-
             p = self.A_network(input_current, training=True)
             v = self.C_network(input_current, training=True)
             #v_ = self.C_network(input_next, training=True)

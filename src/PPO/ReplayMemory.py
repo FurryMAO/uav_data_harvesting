@@ -44,4 +44,4 @@ class ReplayMemory:
 
     def reset(self):
         self.k = 0
-        self.memory=None
+        self.memory = None

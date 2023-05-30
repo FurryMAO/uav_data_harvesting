@@ -23,7 +23,7 @@ class PPOAgentParams:
         # Training Params
         self.learning_rate = 3e-5
         self.alpha = 0.005
-        self.gamma = 0.95
+
 
         # Exploration strategy
         self.soft_max_scaling = 0.1
@@ -53,23 +53,11 @@ class PPOAgent(object):
         self.float_map_shape = example_state.get_float_map_shape() # get the device data map
         self.scalars = example_state.get_num_scalars(give_position=self.params.use_scalar_input) #get the movement budget size
         self.num_actions = len(type(example_action)) # 1
-        self.buffer = []  # 数据缓冲池
-        actor_learning_rate=self.params.actor_learning_rate
-        critic_learning_rate=self.params.critic_learning_rate
-        self.actor_optimizer = tf.optimizers.Adam(actor_learning_rate)  # Actor优化器
-        self.critic_optimizer = tf.optimizers.Adam(critic_learning_rate)  # Critic优化器
-        self.Transition = namedtuple('Transition', ['state', 'action', 'a_log_prob', 'reward', 'next_state'])
-
-
-
-        # Create shared inputs
-        action_input = Input(shape=(), name='action_input', dtype=tf.int64)
-        reward_input = Input(shape=(), name='reward_input', dtype=tf.float32)
-        termination_input = Input(shape=(), name='termination_input', dtype=tf.bool)
-
+        self.a_opt = tf.keras.optimizers.Adam(learning_rate=params.actor_learning_rate)
+        self.c_opt = tf.keras.optimizers.Adam(learning_rate=params.critic_learning_rate)
         ####--------------#######@自定义变量集合
-
-        self.epsilon=0.2
+        self.gamma = 0.95
+        self.clip_pram=0.2
         boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
         scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
@@ -82,8 +70,8 @@ class PPOAgent(object):
         #print(float_map_input.shape)
         padded_map = tf.concat([map_cast, float_map_input], axis=3) # tensors combine in one dimension
 
-        self.value_network = self.build_critic_model(padded_map, scalars_input, states, 'critic_network')
-        self.logits_network = self.build_actor_model(padded_map, scalars_input, states, 'act_network')
+        self.A_network = self.build_actor_model(padded_map, scalars_input, states, 'actor')
+        self.C_network = self.build_critic_model(padded_map, scalars_input, states, 'critic')
 
         self.global_map_model = Model(inputs=[boolean_map_input, float_map_input],
                                       outputs=self.global_map)
@@ -91,43 +79,49 @@ class PPOAgent(object):
                                      outputs=self.local_map)
         self.total_map_model = Model(inputs=[boolean_map_input, float_map_input],
                                      outputs=self.total_map)
-        value = self.value_network.output
-        logits = self.logits_network.output
 
-        self.critic_model=Model(inputs=states, outputs=value)
-        self.actor_model=Model(inputs=states, outputs=logits)
+        possibility = self.A_network.output
+        values = self.C_network.output
 
+        # Define Q* in min(Q - (r + gamma_terminated * Q*))^2
+        max_action = tf.argmax(possibility, axis=1, name='max_action', output_type=tf.int64)
 
-       ######################@self define model
-
-        max_action = tf.argmax(logits, axis=1, name='max_action', output_type=tf.int64)
+        # Exploit act model
+        self.exploit_model = Model(inputs=states, outputs=max_action)
         self.exploit_model_target = Model(inputs=states, outputs=max_action)
+
         # Softmax explore model
 
-        scaled_logits = logits
-        softmax_scaling = tf.divide(scaled_logits, tf.constant(self.params.soft_max_scaling, dtype=float))
-        softmax_action = tf.keras.activations.softmax(softmax_scaling)
-        softmax_action= tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
+        self.soft_explore_model = Model(inputs=states, outputs=possibility)
+        self.criting_model = Model(inputs=states, outputs=values)
 
-        self.soft_explore_model = Model(inputs=states, outputs=softmax_action)
+        self.a_opt = tf.keras.optimizers.RMSprop(learning_rate=params.actor_learning_rate)
+        self.c_opt = tf.keras.optimizers.RMSprop(learning_rate=params.critic_learning_rate)
 
+        # self.a_opt = tf.optimizers.Adam(learning_rate=params.actor_learning_rate, amsgrad=True)
+        # self.c_opt = tf.optimizers.Adam(learning_rate=params.critic_learning_rate, amsgrad=True)
 
         if self.params.print_summary:
-            self.value_network.summary()
-            self.logits_network.summary()
+            self.A_network.summary()
+            self.C_network.summary()
 
         if stats:
-            stats.set_model(self.value_network)
-            stats.set_model(self.logits_network)
+            stats.set_model(self.A_network)
+            stats.set_model(self.C_network)
 
     def build_actor_model(self, map_proc, states_proc, inputs, name=''):
-        flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
+        flatten_map = self.create_map_proc(map_proc, name)  # return the flatten local and environment map
         layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
         for k in range(self.params.hidden_layer_num):
             layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
                 layer)
         output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-        model = Model(inputs=inputs, outputs=output)
+
+        softmax_scaling = tf.divide(output, tf.constant(self.params.soft_max_scaling, dtype=float))
+        softmax_action = tf.keras.activations.softmax(softmax_scaling)
+        softmax_action = tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
+
+        model = Model(inputs=inputs, outputs=softmax_action)
 
         return model
 
@@ -140,7 +134,6 @@ class PPOAgent(object):
         output = Dense(1, activation='linear', name=name + 'output_layer')(layer)
         model = Model(inputs=inputs, outputs=output)
         return model
-
 
 
     def create_map_proc(self, conv_in, name): #parameter is the total map
@@ -173,23 +166,37 @@ class PPOAgent(object):
 
         return Concatenate(name=name + 'concat_flatten')([flatten_global, flatten_local])
 
-    def act(self, state): #get the achtion based on possibility
-        p, a=self.get_soft_max_exploration(state)
-        return p, a
-
+    def act(self, state):  # get the achtion based on possibility
+        action = self.get_soft_max_exploration(state)
+        return action
 
     def get_random_action(self):
         return np.random.randint(0, self.num_actions)
+
+    def get_exploitation_action(self, state): # get the maximum value action
+        boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
+        float_map_in = state.get_float_map()[tf.newaxis, ...]
+        scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
+        return self.exploit_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
 
     def get_soft_max_exploration(self, state): # given the state and get the action base on the possibility
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
-        prob = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-        a= np.random.choice(range(self.num_actions), size=1, p=prob)
-        action_onehot = tf.one_hot(a, self.num_actions)
-        action_prob = tf.reduce_sum(prob * action_onehot)
-        return action_prob, a
+        p = self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
+        return np.random.choice(range(self.num_actions), size=1, p=p)
+
+
+    def get_old_possiblility_value(self,state):
+        boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
+        float_map_in = state.get_float_map()[tf.newaxis, ...]
+        scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
+        p=self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
+        v=self.criting_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
+
+        return p,v
+
+
 
     def get_exploitation_action_target(self, state): # given state information and get the maximum value action for target netweork
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
@@ -209,57 +216,89 @@ class PPOAgent(object):
         next_scalars = tf.convert_to_tensor(experiences[7], dtype=tf.float32)
         terminated = experiences[8]
         old_action_log_prob = tf.convert_to_tensor(experiences[9], dtype=tf.float32)
-        #old_action_log_prob= tf.expand_dims(old_action_log_prob, axis=1)
-        # 通过MC方法循环计算R(st)
-        discounted = []
-        r = 0
-        for reward, done in zip(reward[::-1], terminated[::-1]):
-            r = reward + self.gamma * r * (1. - done)  # fixed off by one bug
-            discounted.append(r)
-        Rs= discounted[::-1]
-        Rs = tf.convert_to_tensor(Rs, dtype=tf.float32)
-        with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
-            v = self.critic_model([boolean_map, float_map, scalars])
-            v_target = tf.expand_dims(Rs, axis=1)
-            delta = v_target - v  # 计算优势值
-            advantage = tf.stop_gradient(delta)  # 断开梯度连接
-            pi = self.soft_explore_model([boolean_map, float_map, scalars])
-            action = tf.cast(action, dtype=tf.int32)
-            action = tf.expand_dims(action, axis=1)
-            indices = tf.expand_dims(tf.range(action.shape[0]), axis=1)
-            indices = tf.concat([indices, action], axis=1)
-            pi_a = tf.gather_nd(pi, indices)  # 动作的概率值pi(at|st), [b]
-            pi_a = tf.expand_dims(pi_a, axis=1)
+        value=tf.convert_to_tensor(experiences[10], dtype=tf.float32)
+        last_state=[next_boolean_map,next_float_map,next_scalars]
+        v_=self.C_network(last_state)
+        last_element = v_[-1]
+        value = tf.concat([value, tf.expand_dims(last_element, axis=0)], axis=0)
 
-            # 重要性采样
-            ratio = (pi_a /old_action_log_prob)
-            surr1 = ratio * advantage
-            surr2 = tf.clip_by_value(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage
-            # PPO误差函数
-            policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
-            # 对于偏置v来说，希望与MC估计的R(st)越接近越好
-            value_loss = tf.losses.MSE(v_target, v)
-        # 优化策略网络
-        grads1 = tape1.gradient(policy_loss, self.logits_network.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(grads1, self.logits_network.trainable_variables))
-        # 优化偏置值网络
-        grads2 = tape2.gradient(value_loss, self.value_network.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(grads2, self.value_network.trainable_variables))
+        returns, adv = self.preprocess(reward, terminated, value, self.gamma)
+        with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
+            input_current = [boolean_map,
+                             float_map,
+                             scalars]
+            p_new = self.A_network(input_current, training=True)
+            v = self.C_network(input_current, training=True)
+            td = tf.math.subtract(returns, v)
+            c_loss = 0.5 * tf.losses.MSE(returns, v)
+            a_loss = self.actor_loss(p_new, action, adv, old_action_log_prob , c_loss)
+        grads1 = tape1.gradient(a_loss, self.A_network.trainable_variables)
+        grads2 = tape2.gradient(c_loss, self.C_network.trainable_variables)
+        self.a_opt.apply_gradients(zip(grads1, self.A_network.trainable_variables))
+        self.c_opt.apply_gradients(zip(grads2, self.C_network.trainable_variables))
+
+    def preprocess(self, rewards, done, values,  gamma):
+        g = 0
+        lmbda = 0.95
+        returns = []
+        for i in reversed(range(len(rewards))):
+            delta = rewards[i] + gamma * values[i + 1] * done[i] - values[i]
+            g = delta + gamma * lmbda * done[i] * g
+            returns.append(g + values[i])
+
+        returns.reverse()
+        adv = np.array(returns, dtype=np.float32) - values[:-1]
+        adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-10)
+        returns = np.array(returns, dtype=np.float32)
+        return returns, adv
+
+
+
+
+    def actor_loss(self, probs, actions, adv, old_probs, closs):
+        probability = probs
+        entropy = tf.reduce_mean(tf.math.negative(tf.math.multiply(probability, tf.math.log(probability))))
+        # print(probability)
+        # print(entropy)
+        sur1 = []
+        sur2 = []
+
+        for pb, t, op, a in zip(probability, adv, old_probs, actions):
+            a = tf.squeeze(a, axis=0)
+            t = tf.constant(t)
+            # op =  tf.constant(op)
+            # print(f"t{t}")
+            # ratio = tf.math.exp(tf.math.log(pb + 1e-10) - tf.math.log(op + 1e-10))
+            ratio = tf.math.divide(pb[a], op[a])
+            # print(f"ratio{ratio}")
+            s1 = tf.math.multiply(ratio, t)
+            # print(f"s1{s1}")
+            s2 = tf.math.multiply(tf.clip_by_value(ratio, 1.0 - self.clip_pram, 1.0 + self.clip_pram), t)
+            # print(f"s2{s2}")
+            sur1.append(s1)
+            sur2.append(s2)
+
+        sr1 = tf.stack(sur1)
+        sr2 = tf.stack(sur2)
+
+        # closs = tf.reduce_mean(tf.math.square(td))
+        loss = tf.math.negative(tf.reduce_mean(tf.math.minimum(sr1, sr2)) - closs + 0.001 * entropy)
+        # print(loss)
+        return loss
 
 
 
     def save_weights(self, path_to_weights):
-        self.value_network.save_weights(path_to_weights)
-        self.logits_network.save_weights(path_to_weights)
+        self.A_network.save_weights(path_to_weights)
+        self.C_network.save_weights(path_to_weights)
 
     def save_model(self, path_to_model):
-        self.value_network.save(path_to_model)
-        self.logits_network.save(path_to_model)
+        self.A_network.save(path_to_model)
+        self.C_network.save(path_to_model)
 
     def load_weights(self, path_to_weights):
-        self.value_network.load_weights(path_to_weights)
-        self.logits_network.load_weights(path_to_weights)
-
+        self.A_network.load_weights(path_to_weights)
+        self.C_network.load_weights(path_to_weights)
 
     def get_global_map(self, state):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
@@ -275,5 +314,4 @@ class PPOAgent(object):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         return self.total_map_model([boolean_map_in, float_map_in]).numpy()
-
 

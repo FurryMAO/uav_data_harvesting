@@ -7,7 +7,7 @@
     },
     "grid_params": {
         "fixed_starting_idcs": false,
-        "starting_position": [[19,1]],
+        "starting_position": [[21,2]],
         "movement_range": [
             50,
             150
@@ -29,10 +29,10 @@
             "fixed_devices": true,
             "devices": {
                 "position": [
-                    [8, 11],[15, 8],[2,3],[8,19],[21,5]
+                    [8, 11],[15, 8],[2,3],[3,20],[21,5],[5,19]
                 ],
-                "data": [15.0,10.0,20.0, 5.0, 10.0],
-                "color": ["magenta","lightpink","aqua","gold","brown"]
+                "data": [15.0,10.0,20.0, 25.0, 10.0,20.0],
+                "color": ["magenta","lightpink","aqua","gold","brown","red"]
             }
         },
 
@@ -54,7 +54,7 @@
         "empty_battery_penalty": 250.0,
         "data_multiplier": 2.5,
         "movement_penalty": 0.1,
-        "landing_reward": 15
+        "landing_reward": 20
     },
     "trainer_params": {
         "batch_size": 128,
@@ -68,9 +68,9 @@
     "algorithm_params": {
         "Policy_Gradient": false,
         "DDQN": false,
-        "AC": true,
+        "AC": false,
         "TAC": false,
-        "PPO": false
+        "PPO": true
     },
 
 

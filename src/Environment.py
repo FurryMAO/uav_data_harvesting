@@ -61,7 +61,7 @@ class Environment(BaseEnvironment):
             self.agent = PPOAgent(params.agent_params, self.grid.get_example_state(),
                                  self.physics.get_example_action(), stats=self.stats)  # PGAGRNT( params,
             self.trainer = PPOTrainer(params.trainer_params, agent=self.agent)
-            self.flag = 1
+            self.flag = 3
 
 
         self.display.set_channel(self.physics.channel)
@@ -79,6 +79,7 @@ class Environment(BaseEnvironment):
                 if state.terminal:
                     continue
                 action = self.agent.get_exploitation_action_target(state)
+
                 #self.loss=self.agent.aloss
                 if not first_action:
                     reward = self.rewards.calculate_reward(self.last_states[state.active_agent],
@@ -154,14 +155,12 @@ class Environment(BaseEnvironment):
         self.first_action = False
         return state
 
-
-    def step_on(self, state: State, random=False): #update the action, reward, next state 向下存储一部 保存信息
+    def step_ppo(self, state: State, random=False):  # update the action, reward, next state 向下存储一部 保存信息
         for state.active_agent in range(state.num_agents):
             if state.terminal:
                 continue
             if random:
                 action = self.agent.get_random_action()
-                action_prob=1/6
             ## episollion greddy
             # else:
             #     if np.random.uniform() < self.eps:
@@ -170,14 +169,15 @@ class Environment(BaseEnvironment):
             #         # choose the best action according to current Q table
             #         action = self.agent.act(state)
             else:
-                action_prob, action = self.agent.act(state)
+                action = self.agent.act(state)
+                prob, value = self.agent.get_old_possiblility_value(state)
+
 
             if not self.first_action:
                 reward = self.rewards.calculate_reward(self.last_states[state.active_agent],
                                                        GridActions(self.last_actions[state.active_agent]), state)
-
                 self.trainer.add_experience(self.last_states[state.active_agent], self.last_actions[state.active_agent],
-                                            reward, state, action_prob)
+                                            reward, state, prob, value)
                 self.stats.add_experience(
                     (self.last_states[state.active_agent], self.last_actions[state.active_agent], reward,
                      copy.deepcopy(state)))
@@ -189,14 +189,18 @@ class Environment(BaseEnvironment):
                 reward = self.rewards.calculate_reward(self.last_states[state.active_agent],
                                                        GridActions(self.last_actions[state.active_agent]), state)
                 self.trainer.add_experience(self.last_states[state.active_agent], self.last_actions[state.active_agent],
-                                            reward, state,action_prob)
+                                            reward, state, prob, value)
                 self.stats.add_experience(
                     (self.last_states[state.active_agent], self.last_actions[state.active_agent], reward,
                      copy.deepcopy(state)))
-            self.step_count += 1
-            self.first_action = False
 
+        self.step_count += 1
+        self.first_action = False
         return state
+
+
+
+
 
     def init_episode(self, init_state=None):
         state = super().init_episode(init_state)
