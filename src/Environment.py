@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-
+import random
 from src.DDQN.Agent import DDQNAgentParams, DDQNAgent
 from src.DDQN.Trainer import DDQNTrainerParams, DDQNTrainer
 from src.PG.Agent import PGAgent, PGAgentParams
@@ -114,11 +114,11 @@ class Environment(BaseEnvironment):
 
 
 
-    def step(self, state: State, random=False): #update the action, reward, next state 向下存储一部 保存信息
+    def step(self, state: State, is_random=False): #update the action, reward, next state 向下存储一部 保存信息
         for state.active_agent in range(state.num_agents):
             if state.terminal:
                 continue
-            if random:
+            if is_random:
                 action = self.agent.get_random_action()
             ## episollion greddy
             # else:
@@ -155,11 +155,11 @@ class Environment(BaseEnvironment):
         self.first_action = False
         return state
 
-    def step_ppo(self, state: State, random=False):  # update the action, reward, next state 向下存储一部 保存信息
+    def step_ppo(self, state: State, is_random=False):  # update the action, reward, next state 向下存储一部 保存信息
         for state.active_agent in range(state.num_agents):
             if state.terminal:
                 continue
-            if random:
+            if is_random:
                 action = self.agent.get_random_action()
             ## episollion greddy
             # else:
@@ -169,10 +169,12 @@ class Environment(BaseEnvironment):
             #         # choose the best action according to current Q table
             #         action = self.agent.act(state)
             else:
-                action = self.agent.act(state)
-                prob, value = self.agent.get_old_possiblility_value(state)
+                if random.random() < 0.1:
+                    action=self.agent.get_random_action()
+                else:
+                    action = self.agent.act(state)
 
-
+            prob, value = self.agent.get_old_possiblility_value(state, action)
             if not self.first_action:
                 reward = self.rewards.calculate_reward(self.last_states[state.active_agent],
                                                        GridActions(self.last_actions[state.active_agent]), state)

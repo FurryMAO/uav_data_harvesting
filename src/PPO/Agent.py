@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
+import tensorflow_probability as tfp
 import numpy as np
 from collections import namedtuple
 
@@ -57,7 +58,7 @@ class PPOAgent(object):
         self.c_opt = tf.keras.optimizers.Adam(learning_rate=params.critic_learning_rate)
         ####--------------#######@自定义变量集合
         self.gamma = 0.95
-        self.clip_pram=0.2
+        self.clip_pram=0.3
         boolean_map_input = Input(shape=self.boolean_map_shape, name='boolean_map_input', dtype=tf.bool)
         float_map_input = Input(shape=self.float_map_shape, name='float_map_input', dtype=tf.float32)
         scalars_input = Input(shape=(self.scalars,), name='scalars_input', dtype=tf.float32)
@@ -171,7 +172,11 @@ class PPOAgent(object):
         return action
 
     def get_random_action(self):
-        return np.random.randint(0, self.num_actions)
+        random_action = np.random.randint(0, self.num_actions)
+        random_action_tensor = tf.convert_to_tensor(random_action, dtype=tf.int32)
+        random_action_tensor = tf.expand_dims(random_action_tensor, axis=0)
+        return random_action_tensor
+
 
     def get_exploitation_action(self, state): # get the maximum value action
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
@@ -187,15 +192,13 @@ class PPOAgent(object):
         return np.random.choice(range(self.num_actions), size=1, p=p)
 
 
-    def get_old_possiblility_value(self,state):
+    def get_old_possiblility_value(self,state,action):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         scalars = np.array(state.get_scalars(), dtype=np.single)[tf.newaxis, ...]
         p=self.soft_explore_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
         v=self.criting_model([boolean_map_in, float_map_in, scalars]).numpy()[0]
-
         return p,v
-
 
 
     def get_exploitation_action_target(self, state): # given state information and get the maximum value action for target netweork
@@ -262,7 +265,6 @@ class PPOAgent(object):
         # print(entropy)
         sur1 = []
         sur2 = []
-
         for pb, t, op, a in zip(probability, adv, old_probs, actions):
             a = tf.squeeze(a, axis=0)
             t = tf.constant(t)

@@ -55,4 +55,7 @@ class ACTrainer:
         self.replay_memory.reset()
 
 
+    def should_fill_replay_memory(self):
+        return False
+
 

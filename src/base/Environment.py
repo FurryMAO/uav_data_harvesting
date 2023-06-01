@@ -26,7 +26,7 @@ class BaseEnvironment:
         while self.trainer.should_fill_replay_memory(): #True
             state = copy.deepcopy(self.init_episode())
             while not state.terminal:
-                next_state = self.step(state, random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
+                next_state = self.step(state, is_random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
                 state = copy.deepcopy(next_state)
 
 
@@ -46,23 +46,11 @@ class BaseEnvironment:
             self.stats.log_training_data(step=self.step_count)
 
         if self.flag==1: # on policy 走一把更新一次
-            while not state.is_terminal():
-                #self.count_in_episode=self.count_in_episode+1
-                state = self.step(state)
-            self.trainer.train_agent()
-            # print('This is the:',self.episode_count,'episode')
-            # print('There are:',self.count_in_episode,'steps')
-            # self.count_in_episode=0
-            self.episode_count += 1
-            self.stats.on_episode_end(self.episode_count)
-            self.stats.log_training_data(step=self.step_count)
-
-        if self.flag==3: # on policy 走5把更新一次
             update_interval = 32
             flag = False
             while not state.is_terminal():
                 if flag == False or not state.is_terminal():
-                    state = self.step_ppo(state)
+                    state = self.step(state)
 
                 if self.episode_count % update_interval == 0 and state.is_terminal():
                     self.trainer.train_agent()
@@ -71,12 +59,22 @@ class BaseEnvironment:
             self.stats.on_episode_end(self.episode_count)
             self.stats.log_training_data(step=self.step_count)
 
-
-
+        if self.flag==3: # on policy 走5把更新一次
+                update_interval = 64
+                flag = False
+                while not state.is_terminal():
+                    if flag == False or not state.is_terminal():
+                        state = self.step_ppo(state)
+                    if self.episode_count % update_interval == 0 and state.is_terminal():
+                        self.trainer.train_agent()
+                        flag = True
+                self.episode_count += 1
+                self.stats.on_episode_end(self.episode_count)
+                self.stats.log_training_data(step=self.step_count)
 
 
     def run(self):
-        #self.fill_replay_memory()
+        self.fill_replay_memory()
         print('Running ', self.stats.params.log_file_name)
         bar = tqdm.tqdm(total=int(self.trainer.params.num_steps))
         last_step = 0

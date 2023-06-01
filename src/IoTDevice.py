@@ -74,16 +74,18 @@ class IoTDevice:
 
 class DeviceList:
 
-    def __init__(self, params):
-        par_dict = params.__dict__
-        namespace_len = len(par_dict['position'])
-        dev_list = []
-        for attr in range(namespace_len):
-            map_func = lambda x: x[attr]
-            par_list = {k: map_func(v) for k, v in par_dict.items()}
-            dev_list.append(SimpleNamespace(**par_list))
-        self.devices = [IoTDevice(device) for device in dev_list]
-        # self.devices = [IoTDevice(device) for device in params]
+    def __init__(self, params, classfication):
+        if classfication==1:
+            par_dict = params.__dict__
+            namespace_len = len(par_dict['position'])
+            dev_list = []
+            for attr in range(namespace_len):
+                map_func = lambda x: x[attr]
+                par_list = {k: map_func(v) for k, v in par_dict.items()}
+                dev_list.append(SimpleNamespace(**par_list))
+            self.devices = [IoTDevice(device) for device in dev_list]
+        elif classfication==2:
+            self.devices = [IoTDevice(device) for device in params]
         # self.devices = IoTDevice(params)
 
     def get_data_map(self, shape):
