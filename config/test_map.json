@@ -6,10 +6,10 @@
         "training_images": false
     },
     "grid_params": {
-        "fixed_starting_idcs": false,
-        "starting_position": [[21,2]],
+        "fixed_starting_idcs": true,
+        "starting_position": [[21,3]],
         "movement_range": [
-            50,
+            100,
             150
         ],
         "map_path": "res/test_map.png",
@@ -29,10 +29,10 @@
             "fixed_devices": true,
             "devices": {
                 "position": [
-                    [8, 11],[15, 8],[2,3],[3,20],[21,5]
+                    [8, 11],[15, 8],[2,3],[5,20],[21,5],[15,16]
                 ],
-                "data": [15.0,10.0,20.0, 25.0, 20.0],
-                "color": ["magenta","lightpink","aqua","gold","brown","red"]
+                "data": [15.0,10.0,20.0, 25.0, 20.0,15.0],
+                "color": ["magenta","lightpink","aqua","gold","brown","red", "blue"]
             }
         },
 
@@ -50,9 +50,10 @@
         "multi_agent": false
     },
     "reward_params": {
-        "boundary_penalty": 1.0,
+        "boundary_penalty": 10.0,
         "empty_battery_penalty": 250.0,
-        "data_multiplier": 2.5,
+        "data_multiplier": 25,
+        "local_optim":10,
         "movement_penalty": 0.1
 
     },
@@ -67,9 +68,9 @@
     },
     "algorithm_params": {
         "Policy_Gradient": false,
-        "DDQN": true,
+        "DDQN": false,
         "AC": false,
-        "PPO": false
+        "PPO": true
     },
 
 
@@ -80,7 +81,7 @@
         "hidden_layer_size": 256,
         "hidden_layer_num": 3,
         "learning_rate": 3e-05,
-        "actor_learning_rate": 2e-04,
+        "actor_learning_rate": 3e-04,
         "critic_learning_rate": 1e-03,
         "rm_size": 50000,
         "alpha": 0.005,

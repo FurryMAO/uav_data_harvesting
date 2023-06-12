@@ -22,17 +22,17 @@ class DeviceManager:
 
     def __init__(self, params: DeviceManagerParams):
         self.params = params #the params is the grid_parameter---->device_manager
-        self.classfication = 0
+        #self.classfication = 0
 
     def generate_device_list(self, positions_vector): #the psiition_vector is the free_space but if we set the fisxed_device, then don't need it
 
         if self.params.fixed_devices:
-            self.classfication=1
-            classfication=self.classfication
-            return DeviceList(self.params.devices,classfication)
+            #self.classfication=1
+            #classfication=self.classfication
+            return DeviceList(self.params.devices)
 
         else:
-            self.classfication=2
+            #self.classfication=2
             # Roll number of devices
             #device_count = np.random.randint(self.params.device_count_range[0], self.params.device_count_range[1] + 1)
             device_count = 6 #自己改的，只设置了俩设备 上面源代码为3-11随机生成
@@ -43,9 +43,9 @@ class DeviceManager:
 
             # Roll Data
             datas = np.random.uniform(self.params.data_range[0], self.params.data_range[1], device_count)
-            return self.generate_device_list_from_args(device_count, positions, datas, self.classfication)
+            return self.generate_device_list_from_args(device_count, positions, datas)
 
-    def generate_device_list_from_args(self, device_count, positions, datas, classfication):
+    def generate_device_list_from_args(self, device_count, positions, datas,):
 
         # get colors
         colors = ColorMap[0:max(device_count, len(ColorMap))]
@@ -55,4 +55,4 @@ class DeviceManager:
                                   color=colors[k % len(ColorMap)])
                   for k in range(device_count)]
 
-        return DeviceList(params,classfication)
+        return DeviceList(params)

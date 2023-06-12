@@ -169,10 +169,11 @@ class Environment(BaseEnvironment):
             #         # choose the best action according to current Q table
             #         action = self.agent.act(state)
             else:
-                if random.random() < 0.1:
-                    action=self.agent.get_random_action()
-                else:
-                    action = self.agent.act(state)
+                action = self.agent.act(state)
+                # if random.random() < 0.1:
+                #     action=self.agent.get_random_action()
+                # else:
+                #     action = self.agent.act(state)
 
             prob, value = self.agent.get_old_possiblility_value(state, action)
             if not self.first_action:

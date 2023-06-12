@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D
+from tensorflow.keras.layers import Conv2D, Dense, Flatten, Concatenate, Input, AvgPool2D,LeakyReLU, Dropout
 import tensorflow_probability as tfp
 import numpy as np
 from collections import namedtuple
@@ -110,21 +110,44 @@ class PPOAgent(object):
             stats.set_model(self.A_network)
             stats.set_model(self.C_network)
 
+    # def build_actor_model(self, map_proc, states_proc, inputs, name=''):
+    #     flatten_map = self.create_map_proc(map_proc, name)  # return the flatten local and environment map
+    #     layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
+    #     for k in range(self.params.hidden_layer_num):
+    #         layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
+    #             layer)
+    #     output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
+    #
+    #     softmax_scaling = tf.divide(output, tf.constant(self.params.soft_max_scaling, dtype=float))
+    #     softmax_action = tf.keras.activations.softmax(softmax_scaling)
+    #     softmax_action = tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
+    #
+    #     model = Model(inputs=inputs, outputs=softmax_action)
+    #
+    #     return model
+
     def build_actor_model(self, map_proc, states_proc, inputs, name=''):
         flatten_map = self.create_map_proc(map_proc, name)  # return the flatten local and environment map
         layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
-        for k in range(self.params.hidden_layer_num):
-            layer = Dense(self.params.hidden_layer_size, activation='relu', name=name + 'hidden_layer_all_' + str(k))(
-                layer)
-        output = Dense(self.num_actions, activation='linear', name=name + 'output_layer')(layer)
-
-        softmax_scaling = tf.divide(output, tf.constant(self.params.soft_max_scaling, dtype=float))
-        softmax_action = tf.keras.activations.softmax(softmax_scaling)
-        softmax_action = tf.clip_by_value(softmax_action, 1e-8, 1 - 1e-8)
-
-        model = Model(inputs=inputs, outputs=softmax_action)
-
+        layer = Dense(256, activation='relu')(layer)
+        layer = Dense(256, activation='relu')(layer)
+        # layer = LeakyReLU(alpha=0.2)(layer)
+        # layer = Dropout(rate=0.5)(layer)
+        #layer = Dense(256, activation='relu')(layer)
+        layer= Dense(self.num_actions, activation='softmax')(layer)
+        model = Model(inputs=inputs, outputs=layer)
         return model
+
+    # def build_critic_model(self, map_proc, states_proc, inputs, name=''):
+    #     flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
+    #     layer = Concatenate(name=name + 'concat')([flatten_map, states_proc])
+    #     layer = Dense(256, activation='relu')(layer)
+    #     layer = Dense(256, activation='relu')(layer)
+    #     output = Dense(1, activation='linear', name=name + 'output_layer')(layer)
+    #     model = Model(inputs=inputs, outputs=output)
+    #     return model
+
+
 
     def build_critic_model(self, map_proc, states_proc, inputs, name=''):
         flatten_map = self.create_map_proc(map_proc, name) #return the flatten local and environment map
@@ -284,7 +307,7 @@ class PPOAgent(object):
         sr2 = tf.stack(sur2)
 
         # closs = tf.reduce_mean(tf.math.square(td))
-        loss = tf.math.negative(tf.reduce_mean(tf.math.minimum(sr1, sr2)) - closs + 0.001 * entropy)
+        loss = tf.math.negative(tf.reduce_mean(tf.math.minimum(sr1, sr2)) - closs + 1 * entropy)
         # print(loss)
         return loss
 

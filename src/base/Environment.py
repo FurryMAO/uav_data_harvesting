@@ -60,7 +60,7 @@ class BaseEnvironment:
             self.stats.log_training_data(step=self.step_count)
 
         if self.flag==3: # on policy 走5把更新一次
-                update_interval = 64
+                update_interval = 128
                 flag = False
                 while not state.is_terminal():
                     if flag == False or not state.is_terminal():

@@ -29,6 +29,9 @@ class GridRewards:
         if state.position == next_state.position and not next_state.landed and not action == GridActions.HOVER:
             reward -= self.params.boundary_penalty
 
+        if action == GridActions.HOVER:
+            reward -= self.params.local_optim
+
         # Penalize battery dead
         if next_state.movement_budget == 0 and not next_state.landed:
             reward -= self.params.empty_battery_penalty
