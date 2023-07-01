@@ -29,8 +29,8 @@ class Physics(GridPhysics):
     def register_functions(self, stats: ModelStats):
         stats.set_evaluation_value_callback(self.get_cral)
 
-        stats.add_log_data_callback('cral', self.get_cral)
-        stats.add_log_data_callback('cr', self.get_collection_ratio)
+        stats.add_log_data_callback('collection_ratio*land', self.get_cral)
+        stats.add_log_data_callback('collection_ratio', self.get_collection_ratio)
         stats.add_log_data_callback('successful_landing', self.has_landed)
         stats.add_log_data_callback('boundary_counter', self.get_boundary_counter)
         stats.add_log_data_callback('landing_attempts', self.get_landing_attempts)
@@ -50,10 +50,9 @@ class Physics(GridPhysics):
 
         return self.state
 
-    def comm_step(self, old_position):
+    def comm_step(self, old_position): #每一次运动分成4截，计算通讯
         positions = list(
             reversed(np.linspace(self.state.position, old_position, num=self.params.comm_steps, endpoint=False)))
-
         indices = []
         device_list = self.state.device_list
         jammer_list= self.state.jammer_list

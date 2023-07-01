@@ -3,7 +3,7 @@ import numpy as np
 from src.Channel import Channel
 
 from types import SimpleNamespace
-
+from src.Map.Shadowing import load_or_create_shadowing
 
 
 ###############----------------------------#########@
@@ -17,6 +17,7 @@ class JammerDevice:
         self.params = params
         self.position = params.position  # fixed position can be later overwritten in reset
         self.power = params.power
+        self.gain=4
         # self.data_timeseries = [self.data]
         # self.data_rate_timeseries = [0]
         #self.collected_data = 0
@@ -60,7 +61,8 @@ class IoTDevice:
 
     def get_data_rate(self, pos, channel: Channel, local_interference):
         #local_interference=self.jammer_list.get_interference(pos, my_channel)
-        snr= channel.compute_rate(uav_pos=pos, device_pos=self.position)
+        snr= channel.compute_rate_device(uav_pos=pos, device_pos=self.position)
+
         sinr=snr / (1 + local_interference)
         # self.data_rate_timeseries.append(rate)
         rate=np.log2(1 + sinr)
@@ -164,6 +166,7 @@ class JammerList:
         # self.devices = IoTDevice(params)
         self.jammers = [JammerDevice(jammer) for jammer in params]
         self.interference = 0
+        self.gain = 4
 
 
     ###############----------------------------#########@
@@ -171,6 +174,7 @@ class JammerList:
         total_interference=0
         for jammer in self.jammers:
             jammer_pos= jammer.position
+            power=jammer.power
             dist_jammer = np.sqrt(
                 ((jammer_pos[0] - uav_pos[0]) * channel.params.cell_size) ** 2 +
                 ((jammer_pos[1] - uav_pos[1]) * channel.params.cell_size) ** 2 +
@@ -178,9 +182,11 @@ class JammerList:
             if dist_jammer > 1.5 * channel.params.uav_altitude:
                 self.interference=0
             else:
-                self.interference=jammer.power
-            total_interference=total_interference+self.interference
-        return total_interference
+                jammer_gain=self.gain*power
+                inr = channel.compute_rate_jammer(uav_pos=uav_pos, jammer_pos=jammer_pos,jammer_gain=jammer_gain)
+                self.interference=inr
+            total_inr=total_interference+self.interference
+        return total_inr
 
     def get_jammers(self):
         return self.jammers

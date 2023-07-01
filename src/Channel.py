@@ -43,7 +43,7 @@ class Channel:
 
 
 
-    def compute_rate(self, uav_pos, device_pos):
+    def compute_rate_device(self, uav_pos, device_pos):
 
         dist = np.sqrt(
             ((device_pos[0] - uav_pos[0]) * self.params.cell_size) ** 2 +
@@ -51,7 +51,7 @@ class Channel:
             self.params.uav_altitude ** 2)
 
         if self.total_shadow_map[int(round(device_pos[1])), int(round(device_pos[0])),
-                                 int(round(uav_pos[1])), int(round(uav_pos[0]))]:
+                                 int(round(uav_pos[1])), int(round(uav_pos[0]))]: #看看有没有障碍物遮挡
             snr = self.los_norm_factor * dist ** (
                 -self.params.nlos_path_loss_exp) * 10 ** (np.random.normal(0., self.nlos_shadowing_sigma) / 10)
         else:
@@ -62,3 +62,23 @@ class Channel:
         #rate = np.log2(1 + snr)
 
         return snr
+
+    def compute_rate_jammer(self, uav_pos, jammer_pos, jammer_gain):
+
+        dist = np.sqrt(
+            ((jammer_pos[0] - uav_pos[0]) * self.params.cell_size) ** 2 +
+            ((jammer_pos[1] - uav_pos[1]) * self.params.cell_size) ** 2 +
+            self.params.uav_altitude ** 2)
+
+        if self.total_shadow_map[int(round(jammer_pos[1])), int(round(jammer_pos[0])),
+                                 int(round(uav_pos[1])), int(round(uav_pos[0]))]: #看看有没有障碍物遮挡
+            inr =  jammer_gain*self.los_norm_factor * dist ** (
+                -self.params.nlos_path_loss_exp) * 10 ** (np.random.normal(0., self.nlos_shadowing_sigma) / 10)
+        else:
+            inr =  jammer_gain*self.los_norm_factor * dist ** (
+                -self.params.los_path_loss_exp) * 10 ** (np.random.normal(0., self.los_shadowing_sigma) / 10)
+        # print('the snr is:')
+        # print(snr)
+        #rate = np.log2(1 + snr)
+
+        return inr

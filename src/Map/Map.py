@@ -5,11 +5,11 @@ from scipy.ndimage import binary_dilation
 class Map:
     def __init__(self, map_data):
         self.start_landing_zone = map_data[:, :, 2].astype(bool) # blue get the start and landing zone
-        self.nfz_ = map_data[:, :, 0].astype(bool) # red get the no-fly zone
+        self.nfz = map_data[:, :, 0].astype(bool) # red get the no-fly zone
         self.obstacles = map_data[:, :, 1].astype(bool) #Green get the building blocking wireless links areas
-        selem = np.ones((3, 3), dtype=bool)
-        self.nfz= binary_dilation(self.nfz_, selem) #将不能飞的地方向外膨胀一个单位，防止无人机撞击大楼
-        self.obstacles_= binary_dilation(self.obstacles , selem)
+        #selem = np.ones((3, 3), dtype=bool)
+        #self.nfz= binary_dilation(self.nfz, selem) #将不能飞的地方向外膨胀一个单位，防止无人机撞击大楼
+        #self.obstacles_= binary_dilation(self.obstacles , selem)
 
 
     def get_starting_vector(self):

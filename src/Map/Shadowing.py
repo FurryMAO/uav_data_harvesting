@@ -33,6 +33,24 @@ def bresenham(x0, y0, x1, y1, obstacles, shadow_map):
 
         # if shadowed:
         shadow_map[y0, x0] = False
+'''这段代码实现了 Bresenham 算法用于计算从 (x0, y0) 到 (x1, y1) 两点之间的直线路径，并更新障碍物和阴影地图。
+
+具体步骤如下：
+
+首先判断起始点 (x0, y0) 是否为障碍物，如果是障碍物则直接返回。
+计算 x 轴和 y 轴的距离差值：x_dist = abs(x0 - x1)，y_dist = -abs(y0 - y1)。
+根据目标点相对于起始点的位置关系，确定 x 轴和 y 轴的递增方向：x_step = 1 if x1 > x0 else -1，y_step = 1 if y1 > y0 else -1。
+初始化误差项 error = x_dist + y_dist。
+将起始点标记为非阴影区域：shadow_map[y0, x0] = False。
+进入循环，直到当前点 (x0, y0) 到达目标点 (x1, y1)。
+在每次循环中，根据误差项的值判断是进行水平步进还是垂直步进。
+如果 2 * error - y_dist > x_dist - 2 * error，则进行水平步进。更新误差项和 x 坐标。
+否则，进行垂直步进。更新误差项和 y 坐标。
+在每次循环中，检查当前点是否为障碍物。如果是障碍物，则直接返回。
+循环结束后，表示从 (x0, y0) 到 (x1, y1) 的直线路径已经计算完毕，并且没有遇到障碍物。'''
+
+
+
 
 
 def calculate_shadowing(map_path, save_as):

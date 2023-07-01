@@ -1,6 +1,7 @@
 import argparse
 import os
-
+import tensorflow as tf
+import numpy as np
 from src.Environment import EnvironmentParams, Environment
 
 from utils import *
@@ -32,7 +33,8 @@ if __name__ == "__main__":
     if args.id is not None:
         params.model_stats_params.save_model = "models/" + args.id
         params.model_stats_params.log_file_name = args.id
-
+    np.random.seed(1)
+    tf.random.set_seed(1)
     env = Environment(params)
 
     env.run()

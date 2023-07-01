@@ -339,4 +339,3 @@ class PPOAgent(object):
         boolean_map_in = state.get_boolean_map()[tf.newaxis, ...]
         float_map_in = state.get_float_map()[tf.newaxis, ...]
         return self.total_map_model([boolean_map_in, float_map_in]).numpy()
-

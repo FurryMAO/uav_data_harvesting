@@ -1,5 +1,4 @@
 import numpy as np
-
 from src.DeviceManager import DeviceManagerParams, DeviceManager
 from src.JammerManager import JammerManagerParams,JammerManager
 from src.State import State
@@ -38,7 +37,7 @@ class Grid(BaseGrid):
         self.jammer_manager = JammerManager(self.params.jammer_manager)
         possible_place = np.logical_and(
             np.logical_not(self.map_image.nfz),
-            np.logical_not(self.map_image.obstacles_),
+            np.logical_not(self.map_image.obstacles),
             np.logical_not(self.map_image.start_landing_zone)
         )
         possible_idcs = np.where(possible_place)

@@ -39,29 +39,28 @@ class Environment(BaseEnvironment):
         #-------------自定义变量-----------------
         self.algorithm_select= params.algorithm_params.__dict__
         self.flag=0
-
         #配置agent 的信息
         if self.algorithm_select['Policy_Gradient']==True:
             self.agent = PGAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(),stats=self.stats) #PGAGRNT( params,
             self.trainer = PGTrainer(params.trainer_params, agent=self.agent)
-            self.flag=1
+
         elif self.algorithm_select['DDQN']==True:
             self.agent = DDQNAgent(params.agent_params, self.grid.get_example_state(),
                                    self.physics.get_example_action(), stats=self.stats)  # DDQNAGRNT( params,
             self.trainer = DDQNTrainer(params.trainer_params, agent=self.agent)
-            self.flag=2
+            self.flag = 1
+
         elif self.algorithm_select['AC']==True:
             self.agent = ACAgent(params.agent_params, self.grid.get_example_state(),
                                  self.physics.get_example_action(), stats=self.stats)  # PGAGRNT( params,
             self.trainer = ACTrainer(params.trainer_params, agent=self.agent)
-            self.flag = 1
 
         elif self.algorithm_select['PPO'] == True:
             self.agent = PPOAgent(params.agent_params, self.grid.get_example_state(),
                                  self.physics.get_example_action(), stats=self.stats)  # PGAGRNT( params,
             self.trainer = PPOTrainer(params.trainer_params, agent=self.agent)
-            self.flag = 3
+            self.flag = 2
 
 
         self.display.set_channel(self.physics.channel)
@@ -155,6 +154,7 @@ class Environment(BaseEnvironment):
         self.first_action = False
         return state
 
+
     def step_ppo(self, state: State, is_random=False):  # update the action, reward, next state 向下存储一部 保存信息
         for state.active_agent in range(state.num_agents):
             if state.terminal:
@@ -200,7 +200,6 @@ class Environment(BaseEnvironment):
         self.step_count += 1
         self.first_action = False
         return state
-
 
 
 

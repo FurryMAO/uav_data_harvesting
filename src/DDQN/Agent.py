@@ -183,7 +183,9 @@ class DDQNAgent(object):
     def create_map_proc(self, conv_in, name): #parameter is the total map
 
         # Forking for global and local map
-        # Global Map
+        # Global Map通过调整 global_map_scaling 参数的值，你可以控制全局地图的缩放程度。
+        # 当global_map_scaling的值增大时，意味着进行更多的下采样操作，全局地图的尺寸会相应缩小
+
         global_map = tf.stop_gradient(
             AvgPool2D((self.params.global_map_scaling, self.params.global_map_scaling))(conv_in))
 
@@ -198,6 +200,8 @@ class DDQNAgent(object):
         flatten_global = Flatten(name=name + 'global_flatten')(global_map) #flat the whole map
 
         # Local Map
+        #当crop_frac为1时，裁剪尺寸与全局地图尺寸相同，无人机可以看到全局地图的所有部分。
+        # 而当crop_frac小于1时，裁剪尺寸将缩小，无人机只能看到全局地图中心的一部分区域，即本地地图
         crop_frac = float(self.params.local_map_size) / float(self.boolean_map_shape[0])
         local_map = tf.stop_gradient(tf.image.central_crop(conv_in, crop_frac))
         self.local_map = local_map

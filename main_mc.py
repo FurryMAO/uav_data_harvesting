@@ -15,10 +15,10 @@ def eval_logs(event_path):
     _, _, vals = zip(*event_acc.Tensors('successful_landing'))
     has_landed = [tf.make_ndarray(val) for val in vals]
 
-    _, _, vals = zip(*event_acc.Tensors('cr'))
+    _, _, vals = zip(*event_acc.Tensors('collection_ratio'))
     cr = [tf.make_ndarray(val) for val in vals]
 
-    _, _, vals = zip(*event_acc.Tensors('cral'))
+    _, _, vals = zip(*event_acc.Tensors('collection_ratio*land'))
     cral = [tf.make_ndarray(val) for val in vals]
 
     _, _, vals = zip(*event_acc.Tensors('boundary_counter'))

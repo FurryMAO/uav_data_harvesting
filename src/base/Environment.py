@@ -20,7 +20,7 @@ class BaseEnvironment:
         self.display = display
         self.episode_count = 0
         self.step_count = 0
-        self.count_in_episode=0
+
 
     def fill_replay_memory(self):
         while self.trainer.should_fill_replay_memory(): #True
@@ -29,52 +29,55 @@ class BaseEnvironment:
                 next_state = self.step(state, is_random=self.trainer.params.rm_pre_fill_random) #产生的动作是随机的
                 state = copy.deepcopy(next_state)
 
-
+    # def train_episode(self):
+    #     state = copy.deepcopy(self.init_episode())
+    #     self.stats.on_episode_begin(self.episode_count)
+    #     update_interval = 32
+    #     flag = False
+    #     while not state.is_terminal():
+    #         if flag == False or not state.is_terminal():
+    #             if self.flag == 1:
+    #                 state = self.step(state)
+    #             elif self.flag == 2:
+    #                 state = self.step_ppo(state)
+    #         if self.episode_count % update_interval == 0 and state.is_terminal():
+    #             self.trainer.train_agent()
+    #             self.update_count+=1
+    #             flag = True
+    #     self.episode_count += 1
+    #     self.stats.on_episode_end(self.episode_count)
+    #     self.stats.log_training_data(step=self.step_count)
     def train_episode(self):
         state = copy.deepcopy(self.init_episode())
         self.stats.on_episode_begin(self.episode_count)
-        if self.flag==2: # on policy 走一步更新一次
+        if self.flag==1:
             while not state.is_terminal():
-                #self.count_in_episode=self.count_in_episode+1
                 state = self.step(state)
                 self.trainer.train_agent()
-            # print('This is the:',self.episode_count,'episode')
-            # print('There are:',self.count_in_episode,'steps')
-            # self.count_in_episode=0
-            self.episode_count += 1
             self.stats.on_episode_end(self.episode_count)
             self.stats.log_training_data(step=self.step_count)
+            self.episode_count += 1
 
-        if self.flag==1: # on policy 走一把更新一次
-            update_interval = 32
+        elif self.flag == 2:
+            update_interval = 64
+            # 执行至少一次循环
             flag = False
             while not state.is_terminal():
                 if flag == False or not state.is_terminal():
-                    state = self.step(state)
-
+                    state = self.step_ppo(state)
                 if self.episode_count % update_interval == 0 and state.is_terminal():
                     self.trainer.train_agent()
                     flag = True
-            self.episode_count += 1
             self.stats.on_episode_end(self.episode_count)
             self.stats.log_training_data(step=self.step_count)
-
-        if self.flag==3: # on policy 走5把更新一次
-                update_interval = 128
-                flag = False
-                while not state.is_terminal():
-                    if flag == False or not state.is_terminal():
-                        state = self.step_ppo(state)
-                    if self.episode_count % update_interval == 0 and state.is_terminal():
-                        self.trainer.train_agent()
-                        flag = True
-                self.episode_count += 1
-                self.stats.on_episode_end(self.episode_count)
-                self.stats.log_training_data(step=self.step_count)
-
+            self.episode_count += 1
 
     def run(self):
-        self.fill_replay_memory()
+        if self.flag==1:
+            print('Applying DDQN algorithm')
+            self.fill_replay_memory()
+        elif self.flag==2:
+            print('Applying PPO algorithm')
         print('Running ', self.stats.params.log_file_name)
         bar = tqdm.tqdm(total=int(self.trainer.params.num_steps))
         last_step = 0
@@ -112,7 +115,7 @@ class BaseEnvironment:
 
     def test_scenario(self, scenario):
         pass
-
+ #########这部分eval只是在做mc——test的时候有用
     def eval(self, episodes, show=False):
         for _ in tqdm.tqdm(range(episodes)):
             self.test_episode()
@@ -135,20 +138,20 @@ class BaseEnvironment:
                     pass
                 print("next then")
 
-    def eval_scenario(self, init_state):
-        self.test_scenario(init_state)
-
-        self.display.display_episode(self.grid.map_image, self.stats.trajectory, plot=True)
-
-        resp = input('Save run? [y/N]\n')
-        try:
-            if distutils.util.strtobool(resp):
-                save_as = input('Save as: [scenario]\n')
-                if save_as == '':
-                    save_as = 'scenario'
-                self.display.display_episode(self.grid.map_image, self.stats.trajectory, plot=False,
-                                             save_path=save_as + '.png')
-                self.stats.save_episode(save_as)
-                print("Saved as", save_as)
-        except ValueError:
-            pass
+    # def eval_scenario(self, init_state):
+    #     self.test_scenario(init_state)
+    #
+    #     self.display.display_episode(self.grid.map_image, self.stats.trajectory, plot=True)
+    #
+    #     resp = input('Save run? [y/N]\n')
+    #     try:
+    #         if distutils.util.strtobool(resp):
+    #             save_as = input('Save as: [scenario]\n')
+    #             if save_as == '':
+    #                 save_as = 'scenario'
+    #             self.display.display_episode(self.grid.map_image, self.stats.trajectory, plot=False,
+    #                                          save_path=save_as + '.png')
+    #             self.stats.save_episode(save_as)
+    #             print("Saved as", save_as)
+    #     except ValueError:
+    #         pass

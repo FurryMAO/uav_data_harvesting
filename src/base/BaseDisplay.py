@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 from skimage.color import rgb2hsv, hsv2rgb
 from matplotlib import patches
 
-# get the drawing information
+
 class BaseDisplay:
     def __init__(self):
         self.arrow_scale = 14
-        self.marker_size = 22
+        self.marker_size = 15
 
     def create_grid_image(self, ax, env_map: Map, value_map, green=None):
         area_y_max, area_x_max = env_map.get_size()
@@ -43,38 +43,37 @@ class BaseDisplay:
 
         grid_image = hsv2rgb(hsv_image)
 
-        # if (area_x_max, area_y_max) == (64, 64):
-        #     tick_labels_x = np.arange(0, area_x_max, 4)
-        #     tick_labels_y = np.arange(0, area_y_max, 4)
-        #     self.arrow_scale = 14
-        #     self.marker_size = 6
-        # elif (area_x_max, area_y_max) == (32, 32):
-        #     tick_labels_x = np.arange(0, area_x_max, 2)
-        #     tick_labels_y = np.arange(0, area_y_max, 2)
-        #     self.arrow_scale = 8
-        #     self.marker_size = 15
-        # elif (area_x_max, area_y_max) == (50, 50):
-        #     tick_labels_x = np.arange(0, area_x_max, 4)
-        #     tick_labels_y = np.arange(0, area_y_max, 4)
-        #     self.arrow_scale = 12
-        #     self.marker_size = 8
-        # else:
-
-        tick_labels_x = np.arange(0, area_x_max, 1)
-        tick_labels_y = np.arange(0, area_y_max, 1)
-        self.arrow_scale = 4
-        self.marker_size = 24
+        if (area_x_max, area_y_max) == (64, 64):
+            tick_labels_x = np.arange(0, area_x_max, 4)
+            tick_labels_y = np.arange(0, area_y_max, 4)
+            self.arrow_scale = 14
+            self.marker_size = 6
+        elif (area_x_max, area_y_max) == (32, 32):
+            tick_labels_x = np.arange(0, area_x_max, 2)
+            tick_labels_y = np.arange(0, area_y_max, 2)
+            self.arrow_scale = 8
+            self.marker_size = 15
+        elif (area_x_max, area_y_max) == (50, 50):
+            tick_labels_x = np.arange(0, area_x_max, 4)
+            tick_labels_y = np.arange(0, area_y_max, 4)
+            self.arrow_scale = 12
+            self.marker_size = 8
+        else:
+            tick_labels_x = np.arange(0, area_x_max, 1)
+            tick_labels_y = np.arange(0, area_y_max, 1)
+            self.arrow_scale = 5
+            self.marker_size = 15
 
         plt.sca(ax)
         plt.gca().set_aspect('equal', adjustable='box')
         plt.xticks(tick_labels_x)
         plt.yticks(tick_labels_y)
         plt.axis([0, area_x_max, area_y_max, 0])
-        ax.imshow(grid_image.astype(float), extent=[0, area_x_max, area_y_max, 0]) #left, right, bottom,
+        ax.imshow(grid_image.astype(float), extent=[0, area_x_max, area_y_max, 0])
         # plt.axis('off')
 
         obst = env_map.obstacles
-        for i in range(area_x_max): #set the patch for buliding block willness singal
+        for i in range(area_x_max):
             for j in range(area_y_max):
                 if obst[j, i]:
                     rect = patches.Rectangle((i, j), 1, 1, fill=None, hatch='////', edgecolor="Black")
@@ -82,11 +81,11 @@ class BaseDisplay:
 
         # offset to shift tick labels
         locs, labels = plt.xticks()
-        locs_new = [x +0 for x in locs]
-        ax.xaxis.set_ticks_position('top')
-        plt.xticks(locs_new, tick_labels_x,rotation='vertical')
+        locs_new = [x + 0.5 for x in locs]
+        plt.xticks(locs_new, tick_labels_x)
+
         locs, labels = plt.yticks()
-        locs_new = [x +0 for x in locs]
+        locs_new = [x + 0.5 for x in locs]
         plt.yticks(locs_new, tick_labels_y)
 
     def draw_start_and_end(self, trajectory):
@@ -95,50 +94,28 @@ class BaseDisplay:
 
             # Identify first moves
             if state.movement_budget == state.initial_movement_budget:
-                #plt.scatter(state.position[0] +0.5.5, state.position[1] +0.5, s=self.marker_size, marker="h", color="w")
-                plt.scatter(state.position[0]+0 , state.position[1]+0 , s=self.marker_size, marker="*", color="w")
+                plt.scatter(state.position[0] + 0.5, state.position[1] + 0.5, s=self.marker_size, marker="D", color="w")
 
             # Identify last moves
             if next_state.terminal:
                 if next_state.landed:
-                    plt.scatter(next_state.position[0] +0, next_state.position[1] +0,
-                                s=self.marker_size, marker="p", color="g")
-                    # plt.scatter(next_state.position[0], next_state.position[1],
-                    #             s=self.marker_size, marker="p", color="g")
+                    plt.scatter(next_state.position[0] + 0.5, next_state.position[1] + 0.5,
+                                s=self.marker_size, marker="D", color="green")
                 else:
-                    plt.scatter(next_state.position[0] +0, next_state.position[1] +0,
-                                s=self.marker_size, marker="x", color="r")
-                    # plt.scatter(next_state.position[0], next_state.position[1],
-                    #             s=self.marker_size, marker="x", color="r")
+                    plt.scatter(next_state.position[0] + 0.5, next_state.position[1] + 0.5,
+                                s=self.marker_size, marker="D", color="r")
 
     def draw_movement(self, from_position, to_position, color):
         y = from_position[1]
         x = from_position[0]
-        y_next=to_position[1]
-        x_next=to_position[0]
-        dir_y = y_next - y
-        dir_x = x_next - x
+        dir_y = to_position[1] - y
+        dir_x = to_position[0] - x
         if dir_x == 0 and dir_y == 0:
-            #plt.scatter(x +0.5, y +0.5, marker="P", color=color) # whole in the air
-            plt.scatter(x +0, y+0 , marker="+", color='g')
+            plt.scatter(x + 0.5, y + 0.5, marker="X", color=color)
         else:
-            plt.arrow(x+0, y+0, dir_x, dir_y,  # 坐标与距离
-                      head_width=0.2, lw=1,  # 箭头⻓度，箭尾线宽
-                      length_includes_head=True, color=color)  # ⻓度计算包含箭头箭尾
-
-            #
-            # plt.quiver(x+0.5, y+0.5, dir_x, -dir_y, color=color,
-            #            scale=self.arrow_scale, scale_units='inches')
-
-
-            # if abs(dir_x) >= 1 or abs(dir_y) >= 1:
-            #     # plt.quiver(x +0.5, y +0.5, dir_x, -dir_y, color=color,
-            #     #            scale=self.arrow_scale, scale_units='inches')
-            #     plt.quiver(x_next, y_next, dir_x, -dir_y, color=color,
-            #                scale=self.arrow_scale, scale_units='inches')
-            #
-            # else:
-            #     plt.quiver(x +0.5, y +0.5, dir_x, -dir_y, color=color,
-            #                scale=self.arrow_scale, scale_units='inches')
-            #     # plt.quiver(x +0.5, y +0.5, dir_x, -dir_y, color=color,
-            #     #            scale=self.arrow_scale, scale_units='inches')
+            if abs(dir_x) >= 1 or abs(dir_y) >= 1:
+                plt.quiver(x + 0.5, y + 0.5, dir_x, -dir_y, color=color,
+                           scale=self.arrow_scale, scale_units='inches')
+            else:
+                plt.quiver(x + 0.5, y + 0.5, dir_x, -dir_y, color=color,
+                           scale=self.arrow_scale, scale_units='inches')
